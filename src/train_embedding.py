@@ -9,13 +9,12 @@ import torch.nn.functional as F
 from torch_geometric.nn import global_max_pool
 
 from model import GraphEncoderWithHead
-from data.dataset import MoleculeDataset
-from data.dataloader import SubDataLoader
+from data.dataset import MoleculePairDataset
+from data.dataloader import PairDataLoader
 from data.splitter import random_split
-from data.transform import AddRandomWalkSubStruct, AddMurckoSubStruct
 
 import neptune.new as neptune
-
+#import neptune
 
 def compute_distance(center0, center1):
     return torch.linalg.norm(center0 - center1, dim=1).unsqueeze(1)
@@ -36,10 +35,10 @@ def train(encoder, batch, encoder_optim, margin, device):
 
     batch = batch.to(device)
 
-    disk_emb0 = encoder(batch.x, batch.edge_index, batch.edge_attr, batch.batch)
+    disk_emb0 = encoder(batch.x0, batch.edge_index0, batch.edge_attr0, batch.batch0)
     graph_center, graph_radius = torch.chunk(disk_emb0, chunks=2, dim=1)
 
-    pos_disk_emb1 = encoder(batch.sub_x, batch.sub_edge_index, batch.sub_edge_attr, batch.sub_batch)
+    pos_disk_emb1 = encoder(batch.x1, batch.edge_index1, batch.edge_attr1, batch.batch1)
     neg_disk_emb1 = torch.roll(pos_disk_emb1, shifts=1, dims=0)
 
     pos_energy = compute_energy(disk_emb0, pos_disk_emb1)
@@ -74,7 +73,7 @@ def main():
     TRAIN_LOG_FREQ = 10
     DATASET_DIR = "../resource/dataset/"
     RESULT_DIR = "../resource/result/"
-    DATASET = "zinc_standard_agent"
+    DATASET = "zinc_scaffold_network"
     NUM_EPOCHS = 200
     DISK_DIM = 256
 
@@ -93,15 +92,9 @@ def main():
         torch.cuda.manual_seed_all(0)
 
     # set up dataset and transform function.
-    train_dataset = MoleculeDataset(
-        DATASET_DIR + DATASET,
-        dataset=DATASET,
-        transform=AddRandomWalkSubStruct(
-            min_walk_length=args.min_walk_length, max_walk_length=args.max_walk_length
-        ),
-    )
+    train_dataset = MoleculePairDataset(DATASET_DIR + DATASET, dataset=DATASET)
 
-    train_loader = SubDataLoader(
+    train_loader = PairDataLoader(
         train_dataset,
         batch_size=TRAIN_BATCH_SIZE,
         shuffle=True,

@@ -100,8 +100,6 @@ class GraphEncoderWithHead(nn.Module):
         self.head = nn.Sequential(
             nn.BatchNorm1d(emb_dim),
             nn.ReLU(),
-            nn.Linear(emb_dim, 2 * emb_dim),
-            nn.ReLU(),
             nn.Linear(2 * emb_dim, head_dim),
         )
 

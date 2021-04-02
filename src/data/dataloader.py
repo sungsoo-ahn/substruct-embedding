@@ -8,9 +8,9 @@ from torch_geometric.data import Data, Batch
 from data.util import graph_data_obj_to_mol_simple
 
 
-class SubBatch(Data):
+class PairBatch(Data):
     def __init__(self, batch=None, **kwargs):
-        super(SubBatch, self).__init__(**kwargs)
+        super(PairBatch, self).__init__(**kwargs)
         self.batch = batch
 
     @staticmethod
@@ -19,55 +19,49 @@ class SubBatch(Data):
         keys = list(set.union(*keys))
         assert "batch" not in keys
 
-        batch = SubBatch()
+        batch = PairBatch()
 
         for key in keys:
             batch[key] = []
 
-        batch.batch = []
-        batch.sub_batch = []
-        batch.batch_num_nodes = []
-        batch.sub_batch_num_nodes = []
+        batch.batch0 = []
+        batch.batch1 = []
+        batch.batch_num_nodes0 = []
+        batch.batch_num_nodes1 = []
 
-        cumsum_node = 0
-        sub_cumsum_node = 0
+        cumsum_node0 = 0
+        cumsum_node1 = 0
 
         for i, data in enumerate(data_list):
-            if data.sub_x.size(0) == 0:
-                continue
-            
-            num_nodes = data.num_nodes
-            sub_num_nodes = data.sub_x.size(0)
+            num_nodes0 = data.x0.size(0)
+            num_nodes1 = data.x1.size(0)
 
-            batch.batch.append(torch.full((num_nodes,), i, dtype=torch.long))
-            batch.sub_batch.append(torch.full((sub_num_nodes,), i, dtype=torch.long))
+            batch.batch0.append(torch.full((num_nodes0,), i, dtype=torch.long))
+            batch.batch1.append(torch.full((num_nodes1,), i, dtype=torch.long))
 
-            batch.batch_num_nodes.append(num_nodes)
-            batch.sub_batch_num_nodes.append(sub_num_nodes)
+            batch.batch_num_nodes0.append(num_nodes0)
+            batch.batch_num_nodes1.append(num_nodes1)
 
             for key in keys:
                 item = data[key]
-                if key in ["edge_index"]:
-                    item = item + cumsum_node
-                elif key in ["sub_edge_index"]:
-                    item = item + sub_cumsum_node
+                if key in ["edge_index0"]:
+                    item = item + cumsum_node0
+                elif key in ["edge_index1"]:
+                    item = item + cumsum_node1
 
                 batch[key].append(item)
 
-            cumsum_node += num_nodes
-            sub_cumsum_node += sub_num_nodes
+            cumsum_node0 += num_nodes0
+            cumsum_node1 += num_nodes1
 
         for key in keys:
-            if key in ["smiles", "sub_smarts"]:
-                continue
-
             batch[key] = torch.cat(batch[key], dim=data_list[0].__cat_dim__(key, batch[key][0]))
 
         batch.batch_size = len(data_list)
-        batch.batch = torch.cat(batch.batch, dim=-1)
-        batch.sub_batch = torch.cat(batch.sub_batch, dim=-1)
-        batch.batch_num_nodes = torch.LongTensor(batch.batch_num_nodes)
-        batch.sub_batch_num_nodes = torch.LongTensor(batch.sub_batch_num_nodes)
+        batch.batch0 = torch.cat(batch.batch0, dim=-1)
+        batch.batch1 = torch.cat(batch.batch1, dim=-1)
+        batch.batch_num_nodes0 = torch.LongTensor(batch.batch_num_nodes0)
+        batch.batch_num_nodes1 = torch.LongTensor(batch.batch_num_nodes1)
 
         return batch.contiguous()
 
@@ -76,13 +70,13 @@ class SubBatch(Data):
         return self.batch[-1].item() + 1
 
 
-class SubDataLoader(DataLoader):
+class PairDataLoader(DataLoader):
     def __init__(self, dataset, batch_size, shuffle, compute_true_target, **kwargs):
-        super(SubDataLoader, self).__init__(
+        super(PairDataLoader, self).__init__(
             dataset,
             batch_size,
             shuffle,
-            collate_fn=lambda data_list: SubBatch.from_data_list(
+            collate_fn=lambda data_list: PairBatch.from_data_list(
                 data_list, compute_true_target=compute_true_target
             ),
             **kwargs

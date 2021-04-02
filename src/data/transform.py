@@ -19,16 +19,16 @@ def reset_idxes(nx_graph):
 class AddSubStruct:
     def __init__(self, **kwargs):
         pass
-    
+
     def __call__(self, data):
         subdata = self.sample_subdata(data)
-        
+
         data.sub_x = subdata.x
         data.sub_edge_attr = subdata.edge_attr
         data.sub_edge_index = subdata.edge_index
-        
+
         return data
-    
+
     def sample_subdata(self, data):
         raise NotImplementedError
 
@@ -41,11 +41,11 @@ class AddRandomWalkSubStruct(AddSubStruct):
         nx_graph = graph_data_obj_to_nx_simple(data)
         root_node = random.sample(range(data.num_nodes), 1)[0]
         walk_length = random.randint(self.min_walk_length, self.max_walk_length)
-        
+
         randomwalk_nodes = random_walk(
-            data.edge_index[0], 
+            data.edge_index[0],
             data.edge_index[1],
-            torch.tensor([root_node]), 
+            torch.tensor([root_node]),
             walk_length=walk_length
         ).squeeze(0)
         inducing_nodes = torch.unique(randomwalk_nodes).tolist()
@@ -58,7 +58,7 @@ class AddRandomWalkSubStruct(AddSubStruct):
 class AddMurckoSubStruct(AddSubStruct):
     def __init__(self):
         pass
-    
+
     def sample_subdata(self, data):
         scaffold_smiles = MurckoScaffold.MurckoScaffoldSmiles(
                 smiles=data.smiles, includeChirality=True

@@ -244,7 +244,7 @@ def nx_to_graph_data_obj_simple(G):
             edge_features_list.append(edge_feature)
             edges_list.append((j, i))
             edge_features_list.append(edge_feature)
-            
+
         # data.edge_index: Graph connectivity in COO format with shape [2, num_edges]
         edge_index = torch.tensor(np.array(edges_list).T, dtype=torch.long)
 

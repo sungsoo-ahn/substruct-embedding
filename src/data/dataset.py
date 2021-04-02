@@ -6,6 +6,7 @@ import math
 import pandas as pd
 import numpy as np
 import networkx as nx
+from tqdm import tqdm
 from rdkit import Chem
 from rdkit.Chem import Descriptors
 from rdkit.Chem import AllChem
@@ -25,30 +26,120 @@ from data.util import (
     create_standardized_mol_id,
 )
 
+class MoleculePairDataset(InMemoryDataset):
+    def __init__(
+        self,
+        root,
+        transform=None,
+        pre_transform=None,
+        pre_filter=None,
+        dataset="zinc_scaffold_network",
+        empty=False,
+    ):
+        self.dataset = dataset
+        self.root = root
+
+        super(MoleculePairDataset, self).__init__(root, transform, pre_transform, pre_filter)
+        print(self.processed_dir)
+        self.transform, self.pre_transform, self.pre_filter = transform, pre_transform, pre_filter
+
+        if not empty:
+            self.data, self.slices = torch.load(self.processed_paths[0])
+
+        self.smiles_list = pd.read_csv(
+            os.path.join(self.processed_dir, "smiles.csv"), header=None).values.tolist()
+
+        self.network_edge_idxs = torch.load(
+            os.path.join(self.processed_dir, "network_edge_idxs.pt")
+            ).tolist()
+
+    def get(self, idx):
+        data = Data()
+        for node_idx in range(2):
+            smiles_idx = self.network_edge_idxs[idx][node_idx]
+            for key in self.data.keys:
+                item, slices = self.data[key], self.slices[key]
+                s = list(repeat(slice(None), item.dim()))
+                s[data.__cat_dim__(key, item)] = slice(slices[smiles_idx], slices[smiles_idx + 1])
+                data[f"{key}{node_idx}"] = item[s]
+
+        return data
+
+    @property
+    def raw_file_names(self):
+        file_name_list = os.listdir(self.raw_dir)
+        return file_name_list
+
+    @property
+    def processed_file_names(self):
+        return "geometric_data_processed.pt"
+
+    def download(self):
+        raise NotImplementedError(
+            "Must indicate valid location of raw data. " "No download allowed"
+        )
+
+    def process(self):
+        data_smiles_list = []
+        data_list = []
+
+        if self.dataset == "zinc_scaffold_network":
+            from scaffoldgraph import ScaffoldNetwork
+
+            input_path = self.raw_paths[0].replace("zinc_scaffold_network", "zinc_standard_agent")
+            input_df = pd.read_csv(input_path, sep=",", compression="gzip", dtype="str")
+            #input_df = input_df.drop(range(10000, 2000000))
+            network = ScaffoldNetwork.from_dataframe(
+                input_df, smiles_column='smiles', name_column='smiles', progress=True,
+                )
+            smiles_list = list(network.nodes)
+            for smiles in tqdm(smiles_list):
+                try:
+                    rdkit_mol = AllChem.MolFromSmiles(smiles)
+                    if rdkit_mol != None:
+                        data = mol_to_graph_data_obj_simple(rdkit_mol)
+                        data_list.append(data)
+                        data_smiles_list.append(smiles)
+                except:
+                    continue
+
+        if self.pre_filter is not None:
+            data_list = [data for data in data_list if self.pre_filter(data)]
+
+        if self.pre_transform is not None:
+            data_list = [self.pre_transform(data) for data in data_list]
+
+        network_edge_idxs = []
+        for node0, node1 in tqdm(network.edges):
+            try:
+                idx0, idx1 = data_smiles_list.index(node0), data_smiles_list.index(node1)
+                network_edge_idxs.append([idx0, idx1])
+            except:
+                print(node0, node1)
+                continue
+
+        network_edge_idxs = torch.tensor(network_edge_idxs)
+
+        data_smiles_series = pd.Series(data_smiles_list)
+        data_smiles_series.to_csv(
+            os.path.join(self.processed_dir, "smiles.csv"), index=False, header=False
+        )
+
+        data, slices = self.collate(data_list)
+        torch.save((data, slices), self.processed_paths[0])
+
+        torch.save(network_edge_idxs, os.path.join(self.processed_dir, "network_edge_idxs.pt"))
 
 class MoleculeDataset(InMemoryDataset):
     def __init__(
         self,
         root,
-        # data = None,
-        # slices = None,
         transform=None,
         pre_transform=None,
         pre_filter=None,
         dataset="zinc250k",
         empty=False,
     ):
-        """
-        Adapted from qm9.py. Disabled the download functionality
-        :param root: directory of the dataset, containing a raw and processed
-        dir. The raw dir should contain the file containing the smiles, and the
-        processed dir can either empty or a previously processed file
-        :param dataset: name of the dataset. Currently only implemented for
-        zinc250k, chembl_with_labels, tox21, hiv, bace, bbbp, clintox, esol,
-        freesolv, lipophilicity, muv, pcba, sider, toxcast
-        :param empty: if True, then will not load any data obj. For
-        initializing empty dataset
-        """
         self.dataset = dataset
         self.root = root
 
@@ -68,9 +159,9 @@ class MoleculeDataset(InMemoryDataset):
             s = list(repeat(slice(None), item.dim()))
             s[data.__cat_dim__(key, item)] = slice(slices[idx], slices[idx + 1])
             data[key] = item[s]
-                
+
         data.smiles = self.smiles_list[slice(slices[idx], slices[idx + 1])][0][0]
-        
+
         return data
 
     @property
@@ -112,7 +203,7 @@ class MoleculeDataset(InMemoryDataset):
                         # manually add mol id
                         id = int(zinc_id_list[i].split("ZINC")[1].lstrip("0"))
                         data.id = torch.tensor([id])  # id here is zinc id value, stripped of
-                        
+
                         # leading zeros
                         data_list.append(data)
                         data_smiles_list.append(smiles_list[i])
@@ -141,7 +232,6 @@ class MoleculeDataset(InMemoryDataset):
 
             downstream_inchi_set = set()
             for d_path in downstream_dir:
-                print(d_path)
                 dataset_name = d_path.split("/")[1]
                 downstream_dataset = MoleculeDataset(d_path, dataset=dataset_name)
                 downstream_smiles = pd.read_csv(
