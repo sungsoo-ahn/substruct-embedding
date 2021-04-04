@@ -100,7 +100,9 @@ class GraphEncoderWithHead(nn.Module):
         self.head = nn.Sequential(
             nn.BatchNorm1d(emb_dim),
             nn.ReLU(),
-            nn.Linear(2 * emb_dim, head_dim),
+            nn.Linear(emb_dim, 2*emb_dim),
+            nn.ReLU(),
+            nn.Linear(2*emb_dim, head_dim),
         )
 
     def forward(self, x, edge_index, edge_attr, batch):

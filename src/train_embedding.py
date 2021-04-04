@@ -9,7 +9,7 @@ import torch.nn.functional as F
 from torch_geometric.nn import global_max_pool
 
 from model import GraphEncoderWithHead
-from data.dataset import MoleculePairDataset
+from data.dataset import MoleculePairDataset, MoleculeDataset
 from data.dataloader import PairDataLoader
 from data.splitter import random_split
 
@@ -94,6 +94,7 @@ def main():
     # set up dataset and transform function.
     train_dataset = MoleculePairDataset(DATASET_DIR + DATASET, dataset=DATASET)
 
+
     train_loader = PairDataLoader(
         train_dataset,
         batch_size=TRAIN_BATCH_SIZE,
@@ -122,6 +123,8 @@ def main():
             if step % TRAIN_LOG_FREQ == 0:
                 for key, val in train_statistics.items():
                     run[f"train/{key}"].log(val)
+
+        torch.save(GraphEncoderWithHead.encoder.state_dict(), "../resource/result/encoder.pt")
 
 
 if __name__ == "__main__":

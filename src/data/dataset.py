@@ -53,14 +53,21 @@ class MoleculePairDataset(InMemoryDataset):
             os.path.join(self.processed_dir, "network_edge_idxs.pt")
             ).tolist()
 
+    def __len__(self):
+        return len(self.network_edge_idxs)
+
     def get(self, idx):
         data = Data()
         for node_idx in range(2):
             smiles_idx = self.network_edge_idxs[idx][node_idx]
             for key in self.data.keys:
+                print(torch.tensor(self.network_edge_idxs).min())
+                print(torch.tensor(self.network_edge_idxs).max())
+                print(len(self.slices[key]))
                 item, slices = self.data[key], self.slices[key]
                 s = list(repeat(slice(None), item.dim()))
-                s[data.__cat_dim__(key, item)] = slice(slices[smiles_idx], slices[smiles_idx + 1])
+                xx = slice(slices[smiles_idx], slices[smiles_idx + 1])
+                s[data.__cat_dim__(key, item)] = xx
                 data[f"{key}{node_idx}"] = item[s]
 
         return data
@@ -88,20 +95,22 @@ class MoleculePairDataset(InMemoryDataset):
 
             input_path = self.raw_paths[0].replace("zinc_scaffold_network", "zinc_standard_agent")
             input_df = pd.read_csv(input_path, sep=",", compression="gzip", dtype="str")
-            #input_df = input_df.drop(range(10000, 2000000))
+            input_df = input_df.drop(range(100, 2000000))
             network = ScaffoldNetwork.from_dataframe(
                 input_df, smiles_column='smiles', name_column='smiles', progress=True,
                 )
-            smiles_list = list(network.nodes)
-            for smiles in tqdm(smiles_list):
+            valid_nodes = []
+            for smiles in tqdm(list(network.nodes)):
                 try:
                     rdkit_mol = AllChem.MolFromSmiles(smiles)
-                    if rdkit_mol != None:
-                        data = mol_to_graph_data_obj_simple(rdkit_mol)
-                        data_list.append(data)
-                        data_smiles_list.append(smiles)
+                    data = mol_to_graph_data_obj_simple(rdkit_mol)
+                    data_list.append(data)
+                    data_smiles_list.append(smiles)
+                    valid_nodes.append(smiles)
                 except:
                     continue
+
+            network = network.subgraph(valid_nodes)
 
         if self.pre_filter is not None:
             data_list = [data for data in data_list if self.pre_filter(data)]
@@ -109,14 +118,10 @@ class MoleculePairDataset(InMemoryDataset):
         if self.pre_transform is not None:
             data_list = [self.pre_transform(data) for data in data_list]
 
+        node2idx = {node: idx for idx, node in enumerate(valid_nodes)}
         network_edge_idxs = []
         for node0, node1 in tqdm(network.edges):
-            try:
-                idx0, idx1 = data_smiles_list.index(node0), data_smiles_list.index(node1)
-                network_edge_idxs.append([idx0, idx1])
-            except:
-                print(node0, node1)
-                continue
+            network_edge_idxs.append([node2idx[node0], node2idx[node1]])
 
         network_edge_idxs = torch.tensor(network_edge_idxs)
 
