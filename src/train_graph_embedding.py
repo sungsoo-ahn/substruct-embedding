@@ -30,15 +30,15 @@ def compute_energy(emb0, emb1):
     return energy
 
 
-def train(encoder, batch, encoder_optim, margin, device):
-    encoder.train()
+def train(model, batch, optim, margin, device):
+    model.train()
 
     batch = batch.to(device)
 
-    disk_emb0 = encoder(batch.x0, batch.edge_index0, batch.edge_attr0, batch.batch0)
+    disk_emb0 = model(batch.x0, batch.edge_index0, batch.edge_attr0, batch.batch0)
     graph_center, graph_radius = torch.chunk(disk_emb0, chunks=2, dim=1)
 
-    pos_disk_emb1 = encoder(batch.x1, batch.edge_index1, batch.edge_attr1, batch.batch1)
+    pos_disk_emb1 = model(batch.x1, batch.edge_index1, batch.edge_attr1, batch.batch1)
     neg_disk_emb1 = torch.roll(pos_disk_emb1, shifts=1, dims=0)
 
     pos_energy = compute_energy(disk_emb0, pos_disk_emb1)
@@ -50,9 +50,9 @@ def train(encoder, batch, encoder_optim, margin, device):
     neg_loss = neg_elem_loss.mean()
     loss = pos_loss + neg_loss
 
-    encoder_optim.zero_grad()
+    optim.zero_grad()
     loss.backward()
-    encoder_optim.step()
+    optim.step()
 
     loss = loss.detach()
     acc = 0.5 * (
@@ -75,6 +75,7 @@ def main():
     
     parser.add_argument("--num_layers", type=int, default=5)
     parser.add_argument("--emb_dim", type=int, default=300)
+    parser.add_argument("--disk_dim", type=int, default=10)
     parser.add_argument("--drop_rate", type=float, default=0.0)
     
     parser.add_argument("--lr", type=float, default=1e-3)
@@ -102,7 +103,7 @@ def main():
     # set up encoder
     model = GraphEncoderWithHead(
         num_head_layers=2,
-        head_dim=args.emb_dim+1,
+        head_dim=args.disk_dim+1,
         num_encoder_layers=args.num_layers,
         emb_dim=args.emb_dim,
         drop_rate=args.drop_rate

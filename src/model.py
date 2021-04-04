@@ -84,6 +84,29 @@ class NodeEncoder(nn.Module):
 
         return out
 
+class NodeEncoderWithHead(nn.Module):
+    def __init__(self, num_head_layers, head_dim, num_encoder_layers, emb_dim, drop_rate):
+        super(NodeEncoderWithHead, self).__init__()
+
+        self.encoder = NodeEncoder(
+            num_layers=num_encoder_layers, emb_dim=emb_dim, drop_rate=drop_rate
+            )
+        if num_head_layers == 1:
+            self.head = nn.Linear(emb_dim, head_dim)
+        elif num_head_layers == 2:
+            self.head = nn.Sequential(
+                nn.Linear(emb_dim, emb_dim),
+                nn.ReLU(),
+                nn.Linear(emb_dim, head_dim),
+            )
+        else:
+            raise NotImplementedError
+
+    def forward(self, x, edge_index, edge_attr):
+        out = self.encoder(x, edge_index, edge_attr)
+        out = self.head(out)
+
+        return out
 
 class GraphEncoder(NodeEncoder):
     def __init__(self, num_layers, emb_dim, drop_rate):

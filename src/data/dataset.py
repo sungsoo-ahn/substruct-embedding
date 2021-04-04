@@ -68,6 +68,8 @@ class MoleculePairDataset(InMemoryDataset):
                 xx = slice(slices[smiles_idx], slices[smiles_idx + 1])
                 s[data.__cat_dim__(key, item)] = xx
                 data[f"{key}{node_idx}"] = item[s]
+            
+            data[f"smiles{node_idx}"] = self.smiles_list[smiles_idx][0]
 
         return data
 
