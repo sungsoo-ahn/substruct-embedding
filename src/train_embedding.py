@@ -1,6 +1,6 @@
+import os
 from collections import defaultdict
 import argparse
-
 from tqdm import tqdm
 import numpy as np
 
@@ -66,23 +66,23 @@ def train(encoder, batch, encoder_optim, margin, device):
 
 
 def main():
-    TRAIN_BATCH_SIZE = 256
-    EVAL_BATCH_SIZE = 32
-    NUM_WORKERS = 8
-    LR = 1e-3
-    TRAIN_LOG_FREQ = 10
-    DATASET_DIR = "../resource/dataset/"
-    RESULT_DIR = "../resource/result/"
-    DATASET = "zinc_scaffold_network"
-    NUM_EPOCHS = 200
-    DISK_DIM = 256
-
-    # Training settings
     parser = argparse.ArgumentParser()
-    parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--min_walk_length", type=int, default=10)
-    parser.add_argument("--max_walk_length", type=int, default=40)
+    parser.add_argument("--dataset", type=str, default="zinc_scaffold_network")
+    parser.add_argument("--num_epochs", type=float, default=200)
+    
+    parser.add_argument("--batch_size", type=int, default=256)
+    parser.add_argument("--num_workers", type=int, default=8)
+    
+    parser.add_argument("--num_layers", type=int, default=5)
+    parser.add_argument("--emb_dim", type=int, default=300)
+    parser.add_argument("--drop_rate", type=float, default=0.0)
+    
+    parser.add_argument("--lr", type=float, default=1e-3)
+
     parser.add_argument("--margin", type=float, default=1.0)
+
+    parser.add_argument("--log_freq", type=float, default=100)
+    
     args = parser.parse_args()
 
     torch.manual_seed(0)
@@ -91,41 +91,45 @@ def main():
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(0)
 
-    # set up dataset and transform function.
-    train_dataset = MoleculePairDataset(DATASET_DIR + DATASET, dataset=DATASET)
-
-
-    train_loader = PairDataLoader(
-        train_dataset,
-        batch_size=TRAIN_BATCH_SIZE,
+    dataset = MoleculePairDataset("../resource/dataset/" + args.dataset, dataset=args.dataset)
+    loader = PairDataLoader(
+        dataset,
+        batch_size=args.batch_size,
         shuffle=True,
-        compute_true_target=False,
-        num_workers=NUM_WORKERS,
+        num_workers=args.num_workers,
     )
 
     # set up encoder
-    encoder = GraphEncoderWithHead(head_dim=DISK_DIM + 1).to(device)
+    model = GraphEncoderWithHead(
+        num_head_layers=2,
+        head_dim=args.emb_dim+1,
+        num_encoder_layers=args.num_layers,
+        emb_dim=args.emb_dim,
+        drop_rate=args.drop_rate
+        )
+    model = model.to(device)
 
-    # set up optimizer
-    encoder_optim = torch.optim.Adam(encoder.parameters(), lr=LR)
+    optim = torch.optim.Adam(model.parameters(), lr=args.lr)
 
-    run = neptune.init(project="sungsahn0215/relation-embedding")
+    run = neptune.init(project="sungsahn0215/relation-embedding", name="train_embedding")
     run["parameters"] = vars(args)
-    # neptune.create_experiment(name="graph-order", params=vars(args))
-
+    run_id = run["sys/id"].fetch()
+    os.makedirs(f"../resource/result/{run_id}")
+    
     step = 0
-    for epoch in range(NUM_EPOCHS):
-        for batch in tqdm(train_loader):
+    for epoch in range(args.num_epochs):
+        for batch in tqdm(loader):
             step += 1
 
-            train_statistics = train(encoder, batch, encoder_optim, args.margin, device)
+            train_statistics = train(model, batch, optim, args.margin, device)
 
-            if step % TRAIN_LOG_FREQ == 0:
+            if step % args.log_freq == 0:
                 for key, val in train_statistics.items():
                     run[f"train/{key}"].log(val)
 
-        torch.save(GraphEncoderWithHead.encoder.state_dict(), "../resource/result/encoder.pt")
+        torch.save(model.encoder.state_dict(), f"../resource/result/{run_id}/model.pt")
 
-
+    run.stop()
+    
 if __name__ == "__main__":
     main()

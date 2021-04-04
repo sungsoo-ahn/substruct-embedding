@@ -1,26 +1,18 @@
 import argparse
-
-from loader import MoleculeDataset
-from torch_geometric.data import DataLoader
+import numpy as np
+from tqdm import tqdm
+from sklearn.metrics import roc_auc_score
+import neptune.new as neptune
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+from torch_geometric.data import DataLoader
 
-from tqdm import tqdm
-import numpy as np
-
-from model import GNN, GNN_graphpred
-from sklearn.metrics import roc_auc_score
-
-from splitters import scaffold_split
-import pandas as pd
-
-import os
-import shutil
-
-import neptune
+from model import GraphEncoderWithHead
+from data.dataset import MoleculeDataset
+from data.splitter import scaffold_split
 
 criterion = nn.BCEWithLogitsLoss(reduction="none")
 
@@ -48,6 +40,7 @@ def train(model, optimizer, loader, device):
 
         optimizer.step()
 
+    return {"loss": loss.detach()}
 
 def evaluate(model, loader, device):
     model.eval()
@@ -72,21 +65,28 @@ def evaluate(model, loader, device):
             is_valid = y_true[:, i] ** 2 > 0
             roc_list.append(roc_auc_score((y_true[is_valid, i] + 1) / 2, y_scores[is_valid, i]))
 
-    return sum(roc_list) / len(roc_list)
+    acc = sum(roc_list) / len(roc_list)
+    return {"acc": acc}
 
 
 def main():
     # Training settings
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--dataset", type=str, default="tox21",
-    )
-    parser.add_argument(
-        "--model_path", type=str, default="",
-    )
-    parser.add_argument(
-        "--runseed", type=int, default=0,
-    )
+    parser.add_argument("--dataset", type=str, default="tox21")
+    parser.add_argument("--model_path", type=str, default="")
+    parser.add_argument("--runseed", type=int, default=0)
+
+    parser.add_argument("--num_epochs", type=float, default=100)
+    
+    parser.add_argument("--batch_size", type=int, default=256)
+    parser.add_argument("--num_workers", type=int, default=8)
+    
+    parser.add_argument("--num_layers", type=int, default=5)
+    parser.add_argument("--emb_dim", type=int, default=300)
+    parser.add_argument("--drop_rate", type=float, default=0.5)
+    
+    parser.add_argument("--lr", type=float, default=1e-3)
+    
     args = parser.parse_args()
 
     torch.manual_seed(args.runseed)
@@ -107,64 +107,67 @@ def main():
         "clintox": 2,
     }.get(args.dataset)
 
-    dataset = MoleculeDataset("dataset/" + args.dataset, dataset=args.dataset)
+    dataset = MoleculeDataset("../resource/dataset/" + args.dataset, dataset=args.dataset)
     train_dataset, valid_dataset, test_dataset = scaffold_split(
         dataset,
         dataset.smiles_list,
         null_value=0,
-        frac_train=FRAC_TRAIN,
-        frac_valid=FRAC_VALID,
-        frac_test=FRAC_TEST,
+        frac_train=0.8,
+        frac_valid=0.1,
+        frac_test=0.1,
     )
     train_loader = DataLoader(
-        train_dataset, batch_size=BACH_SIZE, shuffle=True, num_workers=NUM_WORKERS
+        train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers
     )
     vali_loader = DataLoader(
-        valid_dataset, batch_size=BACH_SIZE, shuffle=False, num_workers=NUM_WORKERS
+        valid_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers
     )
     test_loader = DataLoader(
-        test_dataset, batch_size=BACH_SIZE, shuffle=False, num_workers=NUM_WORKERS
+        test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers
     )
 
     # set up model
-    model = GNN_graphpred()
+    model = GraphEncoderWithHead(
+        num_head_layers=1,
+        head_dim=num_tasks,
+        num_encoder_layers=args.num_layers,
+        emb_dim=args.emb_dim,
+        drop_rate=args.drop_rate,
+    )
     if not args.model_path == "":
-        model.from_pretrained(args.model_path)
+        model.encoder.load_state_dict(torch.load(args.model_path))
 
     model.to(device)
 
-    # set up optimizer
-    # different learning rate for different part of GNN
-    model_param_group = [
-        {"params": model.gnn.parameters()},
-        {"params": model.graph_pred_linear.parameters(), "lr": args.lr * args.lr_scale},
-    ]
-    optimizer = optim.Adam(model_param_group, lr=args.lr, weight_decay=args.decay)
+    optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
-    neptune.init(project_qualified_name="sungsoo.ahn/self-sup-graph")
-    neptune.create_experiment(name="finetune", params=vars(args))
-    neptune.append_tag(args.dataset)
-    neptune.append_tag(args.model_path)
-
+    run = neptune.init(project="sungsahn0215/substruct-embedding", name="finetune")
+    run["parameters"] = vars(args)
+    
     best_vali_acc = 0.0
     best_test_acc = 0.0
-    for epoch in range(EPOCHS):
+    for epoch in tqdm(range(args.num_epochs)):
         train_statistics = train(model, optimizer, train_loader, device)
+        for key, val in train_statistics.items():
+            run[f"train/{key}"].log(val)
+        
         vali_statistics = evaluate(model, vali_loader, device)
+        for key, val in vali_statistics.items():
+            run[f"vali/{key}"].log(val)
+            
         test_statistics = evaluate(model, test_loader, device)
+        for key, val in test_statistics.items():
+            run[f"test/{key}"].log(val)
 
-        if vali_acc > best_vali_acc:
-            best_vali_acc = vali_acc
-            best_test_acc = test_acc
+        if vali_statistics["acc"] > best_vali_acc:
+            best_vali_acc = vali_statistics["acc"]
+            best_test_acc = test_statistics["acc"]
 
-        neptune.log_metric("val/rocauc", vali_acc)
-        neptune.log_metric("val/best_rocauc", best_vali_acc)
-        neptune.log_metric("test/rocauc", test_acc)
-        neptune.log_metric("test/best_rocauc", best_test_acc)
-
-    with open("result.csv", "a") as f:
-        f.write(f"{args.dataset}, {args.model_path}, {best_vali_acc}, {best_test_acc}\n")
-
-
+        run[f"vali/best_acc"].log(best_vali_acc)
+        run[f"test/best_acc"].log(best_test_acc)
+    
+    run[f"vali/final_acc"] = best_vali_acc
+    run[f"test/final_acc"] = best_test_acc
+    
 if __name__ == "__main__":
     main()

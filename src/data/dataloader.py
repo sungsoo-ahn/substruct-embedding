@@ -14,7 +14,7 @@ class PairBatch(Data):
         self.batch = batch
 
     @staticmethod
-    def from_data_list(data_list, compute_true_target):
+    def from_data_list(data_list):
         keys = [set(data.keys) for data in data_list]
         keys = list(set.union(*keys))
         assert "batch" not in keys
@@ -71,13 +71,11 @@ class PairBatch(Data):
 
 
 class PairDataLoader(DataLoader):
-    def __init__(self, dataset, batch_size, shuffle, compute_true_target, **kwargs):
+    def __init__(self, dataset, batch_size, shuffle, **kwargs):
         super(PairDataLoader, self).__init__(
             dataset,
             batch_size,
             shuffle,
-            collate_fn=lambda data_list: PairBatch.from_data_list(
-                data_list, compute_true_target=compute_true_target
-            ),
+            collate_fn=lambda data_list: PairBatch.from_data_list(data_list),
             **kwargs
         )

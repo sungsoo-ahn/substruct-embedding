@@ -26,6 +26,7 @@ from data.util import (
     create_standardized_mol_id,
 )
 
+
 class MoleculePairDataset(InMemoryDataset):
     def __init__(
         self,
@@ -47,11 +48,12 @@ class MoleculePairDataset(InMemoryDataset):
             self.data, self.slices = torch.load(self.processed_paths[0])
 
         self.smiles_list = pd.read_csv(
-            os.path.join(self.processed_dir, "smiles.csv"), header=None).values.tolist()
+            os.path.join(self.processed_dir, "smiles.csv"), header=None
+        ).values.tolist()
 
         self.network_edge_idxs = torch.load(
             os.path.join(self.processed_dir, "network_edge_idxs.pt")
-            ).tolist()
+        ).tolist()
 
     def __len__(self):
         return len(self.network_edge_idxs)
@@ -61,9 +63,6 @@ class MoleculePairDataset(InMemoryDataset):
         for node_idx in range(2):
             smiles_idx = self.network_edge_idxs[idx][node_idx]
             for key in self.data.keys:
-                print(torch.tensor(self.network_edge_idxs).min())
-                print(torch.tensor(self.network_edge_idxs).max())
-                print(len(self.slices[key]))
                 item, slices = self.data[key], self.slices[key]
                 s = list(repeat(slice(None), item.dim()))
                 xx = slice(slices[smiles_idx], slices[smiles_idx + 1])
@@ -95,10 +94,10 @@ class MoleculePairDataset(InMemoryDataset):
 
             input_path = self.raw_paths[0].replace("zinc_scaffold_network", "zinc_standard_agent")
             input_df = pd.read_csv(input_path, sep=",", compression="gzip", dtype="str")
-            input_df = input_df.drop(range(100, 2000000))
+            input_df = input_df.drop(range(1000, 2000000))
             network = ScaffoldNetwork.from_dataframe(
-                input_df, smiles_column='smiles', name_column='smiles', progress=True,
-                )
+                input_df, smiles_column="smiles", name_column="smiles", progress=True,
+            )
             valid_nodes = []
             for smiles in tqdm(list(network.nodes)):
                 try:
@@ -135,6 +134,7 @@ class MoleculePairDataset(InMemoryDataset):
 
         torch.save(network_edge_idxs, os.path.join(self.processed_dir, "network_edge_idxs.pt"))
 
+
 class MoleculeDataset(InMemoryDataset):
     def __init__(
         self,
@@ -154,8 +154,13 @@ class MoleculeDataset(InMemoryDataset):
         if not empty:
             self.data, self.slices = torch.load(self.processed_paths[0])
 
-        self.smiles_list = pd.read_csv(
-            os.path.join(self.processed_dir, "smiles.csv"), header=None).values.tolist()
+        self.smiles_list = list(
+            zip(
+                *pd.read_csv(
+                    os.path.join(self.processed_dir, "smiles.csv"), header=None
+                ).values.tolist()
+            )
+        )[0]
 
     def get(self, idx):
         data = Data()
