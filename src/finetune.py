@@ -53,11 +53,11 @@ def evaluate(model, loader, device):
         with torch.no_grad():
             pred = model(batch.x, batch.edge_index, batch.edge_attr, batch.batch)
 
-        y_true.append(batch.y.view(pred.shape))
-        y_scores.append(pred)
+        y_true.append(batch.y.reshape(pred.shape).detach().cpu())
+        y_scores.append(pred.detach().cpu())
 
-    y_true = torch.cat(y_true, dim=0).cpu().numpy()
-    y_scores = torch.cat(y_scores, dim=0).cpu().numpy()
+    y_true = torch.cat(y_true, dim=0).numpy()
+    y_scores = torch.cat(y_scores, dim=0).numpy()
 
     roc_list = []
     for i in range(y_true.shape[1]):
@@ -77,16 +77,16 @@ def main():
     parser.add_argument("--runseed", type=int, default=0)
 
     parser.add_argument("--num_epochs", type=float, default=100)
-    
-    parser.add_argument("--batch_size", type=int, default=256)
-    parser.add_argument("--num_workers", type=int, default=8)
-    
+
+    parser.add_argument("--batch_size", type=int, default=32)
+    parser.add_argument("--num_workers", type=int, default=0)
+
     parser.add_argument("--num_layers", type=int, default=5)
     parser.add_argument("--emb_dim", type=int, default=300)
     parser.add_argument("--drop_rate", type=float, default=0.5)
-    
+
     parser.add_argument("--lr", type=float, default=1e-3)
-    
+
     args = parser.parse_args()
 
     torch.manual_seed(args.runseed)
@@ -141,20 +141,20 @@ def main():
 
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
-    run = neptune.init(project="sungsahn0215/substruct-embedding", name="finetune")
+    run = neptune.init(project="sungsahn0215/relation-embedding", name="finetune")
     run["parameters"] = vars(args)
-    
+
     best_vali_acc = 0.0
     best_test_acc = 0.0
     for epoch in tqdm(range(args.num_epochs)):
         train_statistics = train(model, optimizer, train_loader, device)
         for key, val in train_statistics.items():
             run[f"train/{key}"].log(val)
-        
+
         vali_statistics = evaluate(model, vali_loader, device)
         for key, val in vali_statistics.items():
             run[f"vali/{key}"].log(val)
-            
+
         test_statistics = evaluate(model, test_loader, device)
         for key, val in test_statistics.items():
             run[f"test/{key}"].log(val)
@@ -165,9 +165,9 @@ def main():
 
         run[f"vali/best_acc"].log(best_vali_acc)
         run[f"test/best_acc"].log(best_test_acc)
-    
+
     run[f"vali/final_acc"] = best_vali_acc
     run[f"test/final_acc"] = best_test_acc
-    
+
 if __name__ == "__main__":
     main()

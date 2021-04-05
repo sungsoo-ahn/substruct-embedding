@@ -3,6 +3,7 @@ from collections import defaultdict
 import argparse
 from tqdm import tqdm
 import numpy as np
+import random
 
 import torch
 import torch.nn.functional as F
@@ -10,11 +11,10 @@ from torch_geometric.nn import global_max_pool
 
 from model import NodeEncoderWithHead
 from data.dataset import MoleculePairDataset, MoleculeDataset
-from data.dataloader import PairDataLoader
+from data.dataloader import MatchedPairDataLoader
 from data.splitter import random_split
 
 import neptune.new as neptune
-#import neptune
 
 def compute_distance(center0, center1):
     return torch.linalg.norm(center0 - center1, dim=1).unsqueeze(1)
@@ -40,7 +40,8 @@ def train(model, batch, optim, margin, device):
 
     pos_disk_emb1 = model(batch.x1, batch.edge_index1, batch.edge_attr1)
     pos_disk_emb1 = pos_disk_emb1[batch.mask > 0.5]
-    neg_disk_emb1 = torch.roll(pos_disk_emb1, shifts=1, dims=0)
+    shifts = random.randint(1, pos_disk_emb1.size(0)-1)
+    neg_disk_emb1 = torch.roll(pos_disk_emb1, shifts=shifts, dims=0)
 
     pos_energy = compute_energy(disk_emb0, pos_disk_emb1)
     pos_elem_loss = torch.clamp(pos_energy, min=0.0)
@@ -52,6 +53,7 @@ def train(model, batch, optim, margin, device):
     loss = pos_loss + neg_loss
 
     optim.zero_grad()
+    torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
     loss.backward()
     optim.step()
 
@@ -70,20 +72,20 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", type=str, default="zinc_scaffold_network")
     parser.add_argument("--num_epochs", type=float, default=200)
-    
+
     parser.add_argument("--batch_size", type=int, default=256)
     parser.add_argument("--num_workers", type=int, default=8)
-    
+
     parser.add_argument("--num_layers", type=int, default=5)
     parser.add_argument("--emb_dim", type=int, default=300)
     parser.add_argument("--drop_rate", type=float, default=0.0)
-    
+
     parser.add_argument("--lr", type=float, default=1e-3)
 
     parser.add_argument("--margin", type=float, default=1.0)
 
     parser.add_argument("--log_freq", type=float, default=100)
-    
+
     args = parser.parse_args()
 
     torch.manual_seed(0)
@@ -93,7 +95,7 @@ def main():
         torch.cuda.manual_seed_all(0)
 
     dataset = MoleculePairDataset("../resource/dataset/" + args.dataset, dataset=args.dataset)
-    loader = PairDataLoader(
+    loader = MatchedPairDataLoader(
         dataset,
         batch_size=args.batch_size,
         shuffle=True,
@@ -116,7 +118,7 @@ def main():
     run["parameters"] = vars(args)
     run_id = run["sys/id"].fetch()
     os.makedirs(f"../resource/result/{run_id}")
-    
+
     step = 0
     for epoch in range(args.num_epochs):
         for batch in tqdm(loader):
@@ -131,6 +133,6 @@ def main():
         torch.save(model.encoder.state_dict(), f"../resource/result/{run_id}/model.pt")
 
     run.stop()
-    
+
 if __name__ == "__main__":
     main()

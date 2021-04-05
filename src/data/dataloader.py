@@ -41,12 +41,12 @@ class PairBatch(Data):
                 mol0 = Chem.AllChem.MolFromSmiles(data.smiles0)
                 mol1 = Chem.AllChem.MolFromSmiles(data.smiles1)
                 match_idxs = mol1.GetSubstructMatch(mol0)
-                
+
                 # TODO: implement get substructmatch in data
                 if len(match_idxs) == 0:
                     continue
-            
-                mask = torch.zeros(data.x0.size(0))
+
+                mask = torch.zeros(data.x1.size(0))
                 mask[list(match_idxs)] = 1.0
                 batch.mask.append(mask)
 
@@ -67,12 +67,12 @@ class PairBatch(Data):
                     item = item + cumsum_node1
 
                 batch[key].append(item)
-            
-            
+
+
             cumsum_node0 += num_nodes0
             cumsum_node1 += num_nodes1
 
-            
+
         for key in keys:
             batch[key] = torch.cat(batch[key], dim=data_list[0].__cat_dim__(key, batch[key][0]))
 
@@ -83,9 +83,9 @@ class PairBatch(Data):
         batch.batch_num_nodes1 = torch.LongTensor(batch.batch_num_nodes1)
         if match_pair:
             batch.mask = torch.cat(batch.mask, dim=-1)
-        
-            
-        
+
+
+
         return batch.contiguous()
 
     @property
