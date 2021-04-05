@@ -117,6 +117,8 @@ def main():
 
     parser.add_argument("--run_tag", type=str, default="")
 
+    parser.add_argument("--disable_neptune", action="store_true")
+
     args = parser.parse_args()
 
     torch.manual_seed(0)
@@ -173,7 +175,6 @@ def main():
 
             train_statistics = train(model, batch, optim, args.margin, args.loss_type, device)
 
-            if step % args.log_freq == 0:
                 for key, val in train_statistics.items():
                     run[f"train/{key}"].log(val)
 
