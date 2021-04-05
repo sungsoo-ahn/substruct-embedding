@@ -13,7 +13,6 @@ NUM_BOND_TYPES = 6  # including aromatic and self-loop edge, and extra masked to
 NUM_BOND_DIRECTIONS = 3
 
 AGGR = "add"
-EMB_DIM = 300
 NUM_LAYERS = 5
 
 

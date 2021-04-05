@@ -146,7 +146,7 @@ def main():
 
     best_vali_acc = 0.0
     best_test_acc = 0.0
-    for epoch in tqdm(range(args.num_epochs)):
+    for epoch in range(args.num_epochs):
         train_statistics = train(model, optimizer, train_loader, device)
         for key, val in train_statistics.items():
             run[f"train/{key}"].log(val)

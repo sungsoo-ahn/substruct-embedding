@@ -14,7 +14,8 @@ class PairBatch(Data):
         self.batch = batch
 
     @staticmethod
-    def from_data_list(data_list, match_pair):
+    def from_data_list(data_list):
+        data_list = [data for data in data_list if data is not None]
         keys = [set(data.keys) for data in data_list]
         keys = list(set.union(*keys))
         keys = [key for key in keys if key not in ["smiles0", "smiles1"]]
@@ -30,26 +31,15 @@ class PairBatch(Data):
         batch.batch_num_nodes0 = []
         batch.batch_num_nodes1 = []
 
-        if match_pair:
-            batch.mask = []
-
         cumsum_node0 = 0
         cumsum_node1 = 0
-
+        batch_size = 0
         for i, data in enumerate(data_list):
-            if match_pair:
-                mol0 = Chem.AllChem.MolFromSmiles(data.smiles0)
-                mol1 = Chem.AllChem.MolFromSmiles(data.smiles1)
-                match_idxs = mol1.GetSubstructMatch(mol0)
-
-                # TODO: implement get substructmatch in data
-                if len(match_idxs) == 0:
-                    continue
-
-                mask = torch.zeros(data.x1.size(0))
-                mask[list(match_idxs)] = 1.0
-                batch.mask.append(mask)
-
+            if data is None:
+                continue
+            
+            batch_size += 1
+            
             num_nodes0 = data.x0.size(0)
             num_nodes1 = data.x1.size(0)
 
@@ -72,19 +62,14 @@ class PairBatch(Data):
             cumsum_node0 += num_nodes0
             cumsum_node1 += num_nodes1
 
-
         for key in keys:
             batch[key] = torch.cat(batch[key], dim=data_list[0].__cat_dim__(key, batch[key][0]))
 
-        batch.batch_size = len(data_list)
+        batch.batch_size = batch_size
         batch.batch0 = torch.cat(batch.batch0, dim=-1)
         batch.batch1 = torch.cat(batch.batch1, dim=-1)
         batch.batch_num_nodes0 = torch.LongTensor(batch.batch_num_nodes0)
         batch.batch_num_nodes1 = torch.LongTensor(batch.batch_num_nodes1)
-        if match_pair:
-            batch.mask = torch.cat(batch.mask, dim=-1)
-
-
 
         return batch.contiguous()
 
@@ -98,16 +83,6 @@ class PairDataLoader(DataLoader):
             dataset,
             batch_size,
             shuffle,
-            collate_fn=lambda data_list: PairBatch.from_data_list(data_list, match_pair=False),
-            **kwargs
-        )
-
-class MatchedPairDataLoader(DataLoader):
-    def __init__(self, dataset, batch_size, shuffle, **kwargs):
-        super(MatchedPairDataLoader, self).__init__(
-            dataset,
-            batch_size,
-            shuffle,
-            collate_fn=lambda data_list: PairBatch.from_data_list(data_list, match_pair=True),
+            collate_fn=lambda data_list: PairBatch.from_data_list(data_list),
             **kwargs
         )
