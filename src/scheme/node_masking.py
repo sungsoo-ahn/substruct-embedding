@@ -9,8 +9,8 @@ class NodeMaskingScheme:
     def __init__(self, node_mask_rate=0.3):
         self.node_mask_rate = node_mask_rate
         
-    def transform(self, data0):
-        masked_node_indices = self.sample_node_indices(data0)
+    def transform(self, data):
+        masked_node_indices = self.sample_node_indices(data)
         mask = torch.zeros(data.x.size(0), dtype=torch.bool)
         mask[masked_node_indices] = True
         
@@ -39,10 +39,10 @@ class NodeMaskingScheme:
     def train_step(self, batch, models, optim, device):
         models.train()
         batch = batch.to(device)
-        targets = (batch.x1 - 1)[:, 0]
+        targets = (batch.x_masked - 1)[:, 0]
         
         emb = models["encoder"](batch.x, batch.edge_index, batch.edge_attr)
-        preds = models["head"](emb[batch.mask])
+        preds = models["head"](emb[batch.node_mask])
         loss = self.criterion(preds, targets)
         
         with torch.no_grad():
@@ -52,6 +52,6 @@ class NodeMaskingScheme:
         loss.backward()
         optim.step()
         
-        statistics = {"loss": loss.detach(), "acc": acc}
+        statistics = {"loss": loss.detach(), "acc": acc, "num_masked_nodes": torch.sum(batch.node_mask) / batch.batch_size}
         
         return statistics     

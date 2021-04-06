@@ -79,7 +79,7 @@ class SubgraphMaskingScheme:
         loss.backward()
         optim.step()
 
-        statistics = {"loss": loss.detach(), "acc": acc, "num_masked_nodes": preds.size(0) / batch.batch_size}
+        statistics = {"loss": loss.detach(), "acc": acc, "num_masked_nodes": torch.sum(batch.node_mask) / batch.batch_size}
 
         return statistics
 
