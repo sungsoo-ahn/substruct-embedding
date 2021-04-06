@@ -6,10 +6,10 @@ from torch_geometric.utils import add_self_loops
 from torch_geometric.nn import global_mean_pool
 from torch_geometric.nn.inits import zeros
 
-NUM_ATOM_TYPES = 120  # including the extra mask tokens
+NUM_ATOM_TYPES = 120
 NUM_CHIRALITY_TAGS = 3
 
-NUM_BOND_TYPES = 6  # including aromatic and self-loop edge, and extra masked tokens
+NUM_BOND_TYPES = 6
 NUM_BOND_DIRECTIONS = 3
 
 AGGR = "add"

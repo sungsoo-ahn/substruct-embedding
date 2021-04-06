@@ -26,13 +26,13 @@ class PairBatch(Data):
         for key in keys:
             batch[key] = []
 
-        batch.batch0 = []
-        batch.batch1 = []
-        batch.batch_num_nodes0 = []
-        batch.batch_num_nodes1 = []
+        batch.batch = []
+        batch.batch_masked = []
+        batch.batch_num_nodes = []
+        batch.batch_num_nodes_masked = []
 
-        cumsum_node0 = 0
-        cumsum_node1 = 0
+        cumsum_node = 0
+        cumsum_node_masked = 0
         batch_size = 0
         for i, data in enumerate(data_list):
             if data is None:
@@ -40,36 +40,36 @@ class PairBatch(Data):
             
             batch_size += 1
             
-            num_nodes0 = data.x0.size(0)
-            num_nodes1 = data.x1.size(0)
+            num_nodes = data.x.size(0)
+            num_nodes_masked = data.x_masked.size(0)
 
-            batch.batch0.append(torch.full((num_nodes0,), i, dtype=torch.long))
-            batch.batch1.append(torch.full((num_nodes1,), i, dtype=torch.long))
+            batch.batch.append(torch.full((num_nodes,), i, dtype=torch.long))
+            batch.batch_masked.append(torch.full((num_nodes_masked,), i, dtype=torch.long))
 
-            batch.batch_num_nodes0.append(num_nodes0)
-            batch.batch_num_nodes1.append(num_nodes1)
+            batch.batch_num_nodes.append(num_nodes)
+            batch.batch_num_nodes_masked.append(num_nodes_masked)
 
             for key in keys:
                 item = data[key]
-                if key in ["edge_index0"]:
-                    item = item + cumsum_node0
-                elif key in ["edge_index1"]:
-                    item = item + cumsum_node1
+                if key in ["edge_index"]:
+                    item = item + cumsum_node
+                elif key in ["edge_index_masked"]:
+                    item = item + cumsum_node_masked
 
                 batch[key].append(item)
 
 
-            cumsum_node0 += num_nodes0
-            cumsum_node1 += num_nodes1
+            cumsum_node += num_nodes
+            cumsum_node_masked += num_nodes_masked
 
         for key in keys:
             batch[key] = torch.cat(batch[key], dim=data_list[0].__cat_dim__(key, batch[key][0]))
 
         batch.batch_size = batch_size
-        batch.batch0 = torch.cat(batch.batch0, dim=-1)
-        batch.batch1 = torch.cat(batch.batch1, dim=-1)
-        batch.batch_num_nodes0 = torch.LongTensor(batch.batch_num_nodes0)
-        batch.batch_num_nodes1 = torch.LongTensor(batch.batch_num_nodes1)
+        batch.batch = torch.cat(batch.batch, dim=-1)
+        batch.batch_masked = torch.cat(batch.batch_masked, dim=-1)
+        batch.batch_num_nodes = torch.LongTensor(batch.batch_num_nodes)
+        batch.batch_num_nodes_masked = torch.LongTensor(batch.batch_num_nodes_masked)
 
         return batch.contiguous()
 
