@@ -87,7 +87,7 @@ def main():
     parser.add_argument("--lr", type=float, default=1e-3)
 
     parser.add_argument("--run_tag", type=str, default="")
-    parser.add_argument("--num_runs", type=int, default=5)
+    parser.add_argument("--num_runs", type=int, default=10)
     parser.add_argument("--neptune_mode", type=str, default="sync")
 
     args = parser.parse_args()
