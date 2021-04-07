@@ -1,19 +1,22 @@
 #!/bin/bash
 
-WALK_LENGTH_RATE=$1
+NEPTUNE_MODE=$1
+WALK_LENGTH_RATE=$2
 RUN_TAG="wlr_${WALK_LENGTH_RATE}"
 MODEL_PATH="../resource/result/${RUN_TAG}/model.pt"
 
+echo $NEPTUNE_MODE
 echo $WALK_LENGTH_RATE
 echo $RUN_TAG
 echo $MODEL_PATH
 
-#python pretrain.py --scheme subgraph_masking --walk_length_rate $WALK_LENGTH_RATE --run_tag $RUN_TAG
+python pretrain.py --scheme subgraph_mask --walk_length_rate $WALK_LENGTH_RATE --run_tag $RUN_TAG
 
-for RUNSEED in 0 1 2 3 4 5 6 7 8 9
+for DATASET in "tox21" "bace" "bbbp" "toxcast" "sider" "clintox" "hiv" "muv"
 do
-	for DATASET in "tox21" "bace" "bbbp" "toxcast" "sider" "clintox"
-	do
-		python finetune.py --runseed $RUNSEED --dataset $DATASET --model_path $MODEL_PATH
-	done	
-done
+	python finetune.py \
+	--neptune_mode $NEPTUNE_MODE \
+	--dataset $DATASET \
+	--model_path $MODEL_PATH \
+	--run_tag $RUN_TAG
+done	

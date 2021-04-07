@@ -1,7 +1,9 @@
 #!/bin/bash
+#!/bin/bash
 
 NEPTUNE_MODE=$1
-RUN_TAG="nm"
+WALK_LENGTH_RATE=$2
+RUN_TAG="wlr_${WALK_LENGTH_RATE}"
 MODEL_PATH="../resource/result/${RUN_TAG}/model.pt"
 
 echo $NEPTUNE_MODE
@@ -9,7 +11,7 @@ echo $WALK_LENGTH_RATE
 echo $RUN_TAG
 echo $MODEL_PATH
 
-python pretrain.py --scheme node_mask --run_tag $RUN_TAG
+python pretrain.py --scheme subgraph_node_mask --walk_length_rate $WALK_LENGTH_RATE --run_tag $RUN_TAG
 
 for DATASET in "tox21" "bace" "bbbp" "toxcast" "sider" "clintox" "hiv" "muv"
 do
