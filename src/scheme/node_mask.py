@@ -4,7 +4,7 @@ from model import NodeEncoder
 
 NUM_ATOM_TYPES = 120
 
-class NodeMaskingScheme:
+class NodeMaskScheme:
     criterion = torch.nn.CrossEntropyLoss()
     def __init__(self, node_mask_rate=0.3):
         self.node_mask_rate = node_mask_rate

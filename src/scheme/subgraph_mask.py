@@ -6,7 +6,7 @@ from torch_cluster import random_walk
 from model import NodeEncoder, NodeEncoderWithHead
 
 
-class SubgraphMaskingScheme:
+class SubgraphMaskScheme:
     criterion = torch.nn.CrossEntropyLoss()
 
     def __init__(self, walk_length_rate):
@@ -30,14 +30,14 @@ class SubgraphMaskingScheme:
         edge_index_masked = edge_index_masked.view(-1, 1) == masked_node_indices.view(1, -1)
         edge_index_masked = edge_index_masked.nonzero(as_tuple=False)[:, 1].view(2, -1)
         data.edge_index_masked = edge_index_masked
-        masked_edge_index = torch.LongTensor(
-            list(itertools.combinations(masked_node_indices.tolist(), 2))
-        ).T
-        data.edge_index = torch.cat([data.edge_index[:, ~edge_mask], masked_edge_index], dim=1)
+        #masked_edge_index = torch.LongTensor(
+        #    list(itertools.combinations(masked_node_indices.tolist(), 2))
+        #).T
+        #data.edge_index = torch.cat([data.edge_index[:, ~edge_mask], masked_edge_index], dim=1)
 
         data.edge_attr_masked = data.edge_attr[edge_mask, :]
-        masked_edge_attr = torch.zeros_like(masked_edge_index).T
-        data.edge_attr = torch.cat([data.edge_attr[~edge_mask, :], masked_edge_attr], dim=0)
+        #masked_edge_attr = torch.zeros_like(masked_edge_index).T
+        #data.edge_attr = torch.cat([data.edge_attr[~edge_mask, :], masked_edge_attr], dim=0)
 
         data.node_mask = node_mask
 

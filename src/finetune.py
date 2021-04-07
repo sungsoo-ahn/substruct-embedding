@@ -74,8 +74,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", type=str, default="tox21")
     parser.add_argument("--model_path", type=str, default="")
-    parser.add_argument("--runseed", type=int, default=0)
-
+    
     parser.add_argument("--num_epochs", type=float, default=100)
 
     parser.add_argument("--batch_size", type=int, default=32)
@@ -87,87 +86,93 @@ def main():
 
     parser.add_argument("--lr", type=float, default=1e-3)
 
+    parser.add_argument("--run_tag", type=str, default="")
+    parser.add_argument("--num_runs", type=int, default=5)
+    parser.add_argument("--neptune_mode", type=str, default="sync")
+
     args = parser.parse_args()
 
-    torch.manual_seed(args.runseed)
-    np.random.seed(args.runseed)
     device = torch.device(0)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(args.runseed)
-
-    num_tasks = {
-        "tox21": 12,
-        "hiv": 1,
-        "pcba": 128,
-        "muv": 17,
-        "bace": 1,
-        "bbbp": 1,
-        "toxcast": 617,
-        "sider": 27,
-        "clintox": 2,
-    }.get(args.dataset)
-
-    dataset = MoleculeDataset("../resource/dataset/" + args.dataset, dataset=args.dataset)
-    train_dataset, valid_dataset, test_dataset = scaffold_split(
-        dataset,
-        dataset.smiles_list,
-        null_value=0,
-        frac_train=0.8,
-        frac_valid=0.1,
-        frac_test=0.1,
-    )
-    train_loader = DataLoader(
-        train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers
-    )
-    vali_loader = DataLoader(
-        valid_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers
-    )
-    test_loader = DataLoader(
-        test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers
-    )
-
-    # set up model
-    model = GraphEncoderWithHead(
-        num_head_layers=1,
-        head_dim=num_tasks,
-        num_encoder_layers=args.num_layers,
-        emb_dim=args.emb_dim,
-        drop_rate=args.drop_rate,
-    )
-    if not args.model_path == "":
-        model.encoder.load_state_dict(torch.load(args.model_path))
-
-    model.to(device)
-
-    optimizer = optim.Adam(model.parameters(), lr=args.lr)
-
-    run = neptune.init(project="sungsahn0215/relation-embedding", name="finetune")
+    
+    run = neptune.init(
+        project="sungsahn0215/relation-embedding", name="finetune", mode=args.neptune_mode
+        )
     run["parameters"] = vars(args)
 
-    best_vali_acc = 0.0
-    best_test_acc = 0.0
-    for epoch in range(args.num_epochs):
-        train_statistics = train(model, optimizer, train_loader, device)
-        for key, val in train_statistics.items():
-            run[f"train/{key}"].log(val)
+    for runseed in range(args.num_runs):
+        torch.manual_seed(args.runseed)
+        np.random.seed(args.runseed)
+        torch.cuda.manual_seed_all(args.runseed)
 
-        vali_statistics = evaluate(model, vali_loader, device)
-        for key, val in vali_statistics.items():
-            run[f"vali/{key}"].log(val)
+        dataset = MoleculeDataset("../resource/dataset/" + args.dataset, dataset=args.dataset)
+        train_dataset, valid_dataset, test_dataset = scaffold_split(
+            dataset,
+            dataset.smiles_list,
+            null_value=0,
+            frac_train=0.8,
+            frac_valid=0.1,
+            frac_test=0.1,
+        )
+        train_loader = DataLoader(
+            train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers
+        )
+        vali_loader = DataLoader(
+            valid_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers
+        )
+        test_loader = DataLoader(
+            test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers
+        )
 
-        test_statistics = evaluate(model, test_loader, device)
-        for key, val in test_statistics.items():
-            run[f"test/{key}"].log(val)
+        num_tasks = {
+            "tox21": 12,
+            "hiv": 1,
+            "pcba": 128,
+            "muv": 17,
+            "bace": 1,
+            "bbbp": 1,
+            "toxcast": 617,
+            "sider": 27,
+            "clintox": 2,
+        }.get(args.dataset)
 
-        if vali_statistics["acc"] > best_vali_acc:
-            best_vali_acc = vali_statistics["acc"]
-            best_test_acc = test_statistics["acc"]
+        model = GraphEncoderWithHead(
+            num_head_layers=1,
+            head_dim=num_tasks,
+            num_encoder_layers=args.num_layers,
+            emb_dim=args.emb_dim,
+            drop_rate=args.drop_rate,
+        )
+        if not args.model_path == "":
+            model.encoder.load_state_dict(torch.load(args.model_path))
 
-        run[f"vali/best_acc"].log(best_vali_acc)
-        run[f"test/best_acc"].log(best_test_acc)
+        model.to(device)
 
-    run[f"vali/final_acc"] = best_vali_acc
-    run[f"test/final_acc"] = best_test_acc
+        optimizer = optim.Adam(model.parameters(), lr=args.lr)
+
+        best_vali_acc = 0.0
+        best_test_acc = 0.0
+        for epoch in range(args.num_epochs):
+            train_statistics = train(model, optimizer, train_loader, device)
+            for key, val in train_statistics.items():
+                run[f"train/{key}/run{runseed}"].log(val)
+
+            vali_statistics = evaluate(model, vali_loader, device)
+            for key, val in vali_statistics.items():
+                run[f"vali/{key}/run{runseed}"].log(val)
+
+            test_statistics = evaluate(model, test_loader, device)
+            for key, val in test_statistics.items():
+                run[f"test/{key}/run{runseed}"].log(val)
+
+            if vali_statistics["acc"] > best_vali_acc:
+                best_vali_acc = vali_statistics["acc"]
+                best_test_acc = test_statistics["acc"]
+
+            run[f"vali/best_acc/run{runseed}"].log(best_vali_acc)
+            run[f"test/best_acc/run{runseed}"].log(best_test_acc)
+
+        run[f"vali/final_acc/run{runseed}"] = best_vali_acc
+        run[f"test/final_acc/run{runseed}"] = best_test_acc
 
 if __name__ == "__main__":
     main()
