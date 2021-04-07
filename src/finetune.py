@@ -141,7 +141,7 @@ def main():
 
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
-    run = neptune.init(project="sungsahn0215/relation-embedding", name="finetune", mode="offline")
+    run = neptune.init(project="sungsahn0215/relation-embedding", name="finetune")
     run["parameters"] = vars(args)
 
     best_vali_acc = 0.0
