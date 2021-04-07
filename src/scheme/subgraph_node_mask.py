@@ -86,9 +86,8 @@ class SubgraphNodeMaskScheme:
         statistics = {
             "loss": loss.detach(), 
             "acc": acc, 
-            "num_masked_nodes": torch.sum(batch.node_mask) / batch.batch_size,
-            "unque_subgraph_ratio": float(len(set(batch.smiles))) / len(batch.smiles),
-            }
+            "num_masked_nodes": torch.sum(batch.node_mask) / batch.batch_size
+        }
 
         return statistics
 
