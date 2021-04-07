@@ -93,8 +93,10 @@ def main():
                 for key, val in train_statistics.items():
                     run[f"train/{key}"].log(val)
 
-        torch.save(models["encoder"].state_dict(), f"../resource/result/{run_tag}/model.pt")
+        torch.save(models["encoder"].state_dict(), f"../resource/result/{run_tag}/model_{epoch:02d}.pt")
 
+    torch.save(models["encoder"].state_dict(), f"../resource/result/{run_tag}/model.pt")
+    
     run.stop()
 
 
