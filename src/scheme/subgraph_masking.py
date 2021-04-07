@@ -68,7 +68,7 @@ class SubgraphMaskingScheme:
         targets = models["target_encoder"](
             batch.x_masked, batch.edge_index_masked, batch.edge_attr_masked
         )
-        logits = torch.mm(preds, targets.T)
+        logits = torch.mm(preds, targets.T) / preds.size(1)
         dummy_targets = torch.arange(logits.size(0)).to(device)
         loss = self.criterion(logits, dummy_targets)
         
