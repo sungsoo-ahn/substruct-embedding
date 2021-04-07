@@ -11,7 +11,7 @@ echo $WALK_LENGTH_RATE
 echo $RUN_TAG
 echo $MODEL_PATH
 
-python pretrain.py --scheme subgraph_node_mask --walk_length_rate $WALK_LENGTH_RATE --run_tag $RUN_TAG
+python pretrain.py --neptune_mode $NEPTUNE_MODE --scheme subgraph_node_mask --walk_length_rate $WALK_LENGTH_RATE --run_tag $RUN_TAG
 
 for DATASET in "tox21" "bace" "bbbp" "toxcast" "sider" "clintox" "hiv" "muv"
 do

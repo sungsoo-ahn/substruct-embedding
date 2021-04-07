@@ -1,9 +1,9 @@
 #!/bin/bash
-#SBATCH --job-name=disk_atom_mask_
+#SBATCH --job-name=wlr07
 #SBATCH --partition=mbzuai
 #SBATCH --ntasks=1
 #SBATCH --time=24:00:00
-#SBATCH --output=/nfs/projects/mbzuai/peterahn/workspace/substruct-embedding/resource/result/finetune.log
+#SBATCH --output=/nfs/projects/mbzuai/peterahn/workspace/substruct-embedding/resource/result/submit1.log
 #SBATCH -N 1
 #SBATCH -G 1
 
@@ -14,4 +14,4 @@ srun \
   --no-container-mount-home \
   --container-mounts="/nfs/projects/mbzuai/peterahn/workspace/substruct-embedding:/substruct-embedding" \
   --container-workdir="/substruct-embedding/src" \
-  bash ../script/pretrain_and_finetune.sh 
+  bash ../script/subgraph_node_mask.sh "offline" 0.7
