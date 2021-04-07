@@ -71,6 +71,16 @@ class PairBatch(Data):
         batch.batch_num_nodes = torch.LongTensor(batch.batch_num_nodes)
         batch.batch_num_nodes_masked = torch.LongTensor(batch.batch_num_nodes_masked)
 
+        smiles_list = []
+        for data in data_list:
+            mol = graph_data_obj_to_mol_simple(
+                data.x_masked, data.edge_index_masked, data.edge_attr_masked
+                )
+            smiles = Chem.MolToSmiles(mol)
+            smiles_list.append(smiles)
+        
+        batch.smiles = smiles_list
+        
         return batch.contiguous()
 
     @property
