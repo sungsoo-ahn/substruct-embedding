@@ -100,9 +100,9 @@ def main():
     run["parameters"] = vars(args)
 
     for runseed in range(args.num_runs):
-        torch.manual_seed(args.runseed)
-        np.random.seed(args.runseed)
-        torch.cuda.manual_seed_all(args.runseed)
+        torch.manual_seed(runseed)
+        np.random.seed(runseed)
+        torch.cuda.manual_seed_all(runseed)
 
         dataset = MoleculeDataset("../resource/dataset/" + args.dataset, dataset=args.dataset)
         train_dataset, valid_dataset, test_dataset = scaffold_split(
