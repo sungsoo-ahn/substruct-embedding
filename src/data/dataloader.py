@@ -41,7 +41,10 @@ class PairBatch(Data):
             batch_size += 1
             
             num_nodes = data.x.size(0)
-            num_nodes_masked = data.x_masked.size(0)
+            if "x_masked" in keys:
+                num_nodes_masked = data.x_masked.size(0)
+            else:
+                num_nodes_masked = 0
 
             batch.batch.append(torch.full((num_nodes,), i, dtype=torch.long))
             batch.batch_masked.append(torch.full((num_nodes_masked,), i, dtype=torch.long))
@@ -55,7 +58,9 @@ class PairBatch(Data):
                     item = item + cumsum_node
                 elif key in ["edge_index_masked"]:
                     item = item + cumsum_node_masked
-
+                elif key in ["node_indices_masked0", "node_indices_masked1"]:
+                    item = item + cumsum_node
+                    
                 batch[key].append(item)
 
 
