@@ -10,6 +10,8 @@ from data.dataset import MoleculeDataset
 from data.dataloader import PairDataLoader
 from data.splitter import random_split
 from scheme.node_mask import NodeMaskScheme
+from scheme.edge_mask import EdgeMaskScheme
+from scheme.edge_mask_node_pred import EdgeMaskNodePredScheme
 from scheme.subgraph_mask import SubgraphMaskScheme
 from scheme.subgraph_node_mask import SubgraphNodeMaskScheme
 
@@ -21,7 +23,7 @@ def main():
     parser.add_argument("--dataset", type=str, default="zinc_standard_agent")
     parser.add_argument("--num_epochs", type=float, default=10)
 
-    parser.add_argument("--scheme", type=str, default="subgraph_node_masking")
+    parser.add_argument("--scheme", type=str, default="subgraph_node_mask")
 
     parser.add_argument("--batch_size", type=int, default=256)
     parser.add_argument("--num_workers", type=int, default=8)
@@ -37,7 +39,9 @@ def main():
     parser.add_argument("--run_tag", type=str, default="")
 
     parser.add_argument("--node_mask_rate", type=float, default=0.3)
-    parser.add_argument("--walk_length_rate", type=float, default=0.3)
+    parser.add_argument("--edge_mask_rate", type=float, default=0.3)
+    parser.add_argument("--edge_attr_mask", action="store_true")
+    parser.add_argument("--walk_length_rate", type=float, default=1.0)
     parser.add_argument("--neptune_mode", type=str, default="sync")
 
     args = parser.parse_args()
@@ -50,10 +54,15 @@ def main():
 
     if args.scheme == "node_mask":
         scheme = NodeMaskScheme(node_mask_rate=args.node_mask_rate)
+    elif args.scheme == "edge_mask":
+        scheme = EdgeMaskScheme(edge_mask_rate=args.edge_mask_rate, edge_attr_mask=args.edge_attr_mask)
+    elif args.scheme == "edge_mask_node_pred":
+        scheme = EdgeMaskNodePredScheme(edge_mask_rate=args.edge_mask_rate)
     elif args.scheme == "subgraph_mask":
         scheme = SubgraphMaskScheme(walk_length_rate=args.walk_length_rate)
     elif args.scheme == "subgraph_node_mask":
         scheme = SubgraphNodeMaskScheme(walk_length_rate=args.walk_length_rate)
+        
 
     # set up encoder
     models = scheme.get_models(
