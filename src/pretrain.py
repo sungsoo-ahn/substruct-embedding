@@ -19,7 +19,7 @@ import neptune.new as neptune
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", type=str, default="zinc_standard_agent")
-    parser.add_argument("--num_epochs", type=float, default=10)
+    parser.add_argument("--num_epochs", type=float, default=50)
 
     parser.add_argument("--scheme", type=str, default="subgraph_node_masking")
 
