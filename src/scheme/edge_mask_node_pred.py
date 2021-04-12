@@ -6,7 +6,7 @@ NUM_ATOM_TYPES = 120
 
 class EdgeMaskNodePredScheme:
     criterion = torch.nn.CrossEntropyLoss()
-    def __init__(self, edge_mask_rate=0.3):
+    def __init__(self, edge_mask_rate):
         self.edge_mask_rate = edge_mask_rate
         
     def transform(self, data):
@@ -14,21 +14,25 @@ class EdgeMaskNodePredScheme:
         edge_mask = torch.zeros(data.edge_index.size(1), dtype=torch.bool)
         edge_mask[masked_edge_indices] = True
         
-        masked_node_indices = torch.unique(data.edge_index[:, edge_mask].view(-1))
+        node_indices_masked = torch.unique(torch.cat(
+            [data.edge_index[0, edge_mask], data.edge_index[1, edge_mask]], dim=0
+            ))
         node_mask = torch.zeros(data.x.size(0), dtype=torch.bool)
-        node_mask[masked_node_indices] = True
-        
-        data.x_masked = data.x[node_mask].clone()
-        data.x[node_mask] = 0
+        node_mask[node_indices_masked] = True
+
         data.node_mask = node_mask
+        data.x_masked = data.x[node_mask].clone()            
+        data.x[node_mask] = 0
+        
         
         return data
 
     def sample_edge_indices(self, data):
-        num_edges = data.edge_index.size(1)
-        sample_size = int(num_edges * self.edge_mask_rate + 1)
-        node_indices = list(random.sample(range(num_edges), sample_size))
-        return node_indices
+        num_edges = data.edge_index.size(1) // 2
+        sample_size = int(num_edges * self.edge_mask_rate)
+        edge_indices = list(random.sample(range(num_edges), sample_size))
+        edge_indices = [idx * 2 for idx in edge_indices]
+        return edge_indices
 
     def get_models(self, num_layers, emb_dim, drop_rate):
         encoder = NodeEncoder(num_layers, emb_dim, drop_rate)

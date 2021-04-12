@@ -6,7 +6,7 @@ NUM_ATOM_TYPES = 120
 
 class EdgeMaskScheme:
     criterion = torch.nn.CrossEntropyLoss()
-    def __init__(self, edge_mask_rate=0.3, edge_attr_mask=False):
+    def __init__(self, edge_mask_rate, edge_attr_mask):
         self.edge_mask_rate = edge_mask_rate
         self.edge_attr_mask = edge_attr_mask
         
@@ -15,28 +15,26 @@ class EdgeMaskScheme:
         edge_mask = torch.zeros(data.edge_index.size(1), dtype=torch.bool)
         edge_mask[masked_edge_indices] = True
         
-        masked_node_indices0 = data.edge_index[0, edge_mask]
-        masked_node_indices1 = data.edge_index[1, edge_mask]
-        
-        if self.edge_attr_mask:
-            data.edge_attr[edge_mask, :] = 0
-        
         data.node_indices_masked0 = data.edge_index[0, edge_mask]
-        data.node_indices_masked1 = data.edge_index[0, edge_mask]
+        data.node_indices_masked1 = data.edge_index[1, edge_mask]
 
         data.x_masked0 = torch.index_select(data.x, 0, data.node_indices_masked0)
         data.x_masked1 = torch.index_select(data.x, 0, data.node_indices_masked1)
                     
-        data.x[masked_node_indices0] = 0
-        data.x[masked_node_indices1] = 0
+        data.x[data.node_indices_masked0] = 0
+        data.x[data.node_indices_masked1] = 0
 
-        data.edge_mask = edge_mask
+        masked_edge_indices_all = masked_edge_indices + [idx+1 for idx in masked_edge_indices]
+        if self.edge_attr_mask:
+            edge_mask_all = torch.zeros(data.edge_index.size(1), dtype=torch.bool)
+            edge_mask_all[masked_edge_indices_all] = True
+            data.edge_attr[edge_mask_all, :] = 0       
         
         return data
 
     def sample_edge_indices(self, data):
         num_edges = data.edge_index.size(1) // 2
-        sample_size = int(num_edges * self.edge_mask_rate + 1)
+        sample_size = int(num_edges * self.edge_mask_rate)
         edge_indices = list(random.sample(range(num_edges), sample_size))
         edge_indices = [idx * 2 for idx in edge_indices]
         return edge_indices
@@ -75,10 +73,10 @@ class EdgeMaskScheme:
         loss.backward()
         torch.nn.utils.clip_grad_norm_(models.parameters(), 1.0)
         optim.step()
-        
+                
         statistics = {
             "loss": loss.detach(), "acc": acc,
-            "masked_ratio": (batch.node_indices_masked0.size(0) / batch.x.size(0))
+            "masked_ratio": (batch.node_indices_masked0.size(0) / batch.edge_index.size(1))
             }
         
         return statistics     

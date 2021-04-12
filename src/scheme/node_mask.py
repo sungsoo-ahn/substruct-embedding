@@ -6,7 +6,7 @@ NUM_ATOM_TYPES = 120
 
 class NodeMaskScheme:
     criterion = torch.nn.CrossEntropyLoss()
-    def __init__(self, node_mask_rate=0.3):
+    def __init__(self, node_mask_rate):
         self.node_mask_rate = node_mask_rate
         
     def transform(self, data):

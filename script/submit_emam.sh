@@ -1,9 +1,9 @@
 #!/bin/bash
-#SBATCH --job-name=emam03
+#SBATCH --job-name=emam
 #SBATCH --partition=mbzuai
 #SBATCH --ntasks=1
 #SBATCH --time=24:00:00
-#SBATCH --output=/nfs/projects/mbzuai/peterahn/workspace/substruct-embedding/resource/result/submit_emam03.log
+#SBATCH --output=/nfs/projects/mbzuai/peterahn/workspace/substruct-embedding/resource/result/submit_emam.log
 #SBATCH -N 1
 #SBATCH -G 1
 

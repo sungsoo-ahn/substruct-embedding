@@ -55,7 +55,9 @@ def main():
     if args.scheme == "node_mask":
         scheme = NodeMaskScheme(node_mask_rate=args.node_mask_rate)
     elif args.scheme == "edge_mask":
-        scheme = EdgeMaskScheme(edge_mask_rate=args.edge_mask_rate, edge_attr_mask=args.edge_attr_mask)
+        scheme = EdgeMaskScheme(
+            edge_mask_rate=args.edge_mask_rate, edge_attr_mask=args.edge_attr_mask
+            )
     elif args.scheme == "edge_mask_node_pred":
         scheme = EdgeMaskNodePredScheme(edge_mask_rate=args.edge_mask_rate)
     elif args.scheme == "subgraph_mask":
