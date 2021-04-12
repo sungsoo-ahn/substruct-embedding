@@ -13,7 +13,7 @@ echo $MODEL_PATH
 python pretrain.py \
 --neptune_mode $NEPTUNE_MODE \
 --scheme edge_mask \
---edge_mask_ratio $EDGE_MASK_RATIO \
+--edge_mask_rate $EDGE_MASK_RATIO \
 --edge_attr_mask \
 --run_tag $RUN_TAG
 

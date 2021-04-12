@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=wlr07
+#SBATCH --job-name=sm05
 #SBATCH --partition=mbzuai
 #SBATCH --ntasks=1
 #SBATCH --time=24:00:00

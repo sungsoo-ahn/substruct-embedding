@@ -17,7 +17,7 @@ python pretrain.py \
 --walk_length_rate $WALK_LENGTH_RATE \
 --run_tag $RUN_TAG
 
-for DATASET in "tox21" "bace" "bbbp" "toxcast" #"sider" "clintox" "hiv" "muv"
+for DATASET in "tox21" "bace" "bbbp" "toxcast" "sider" "clintox" "hiv" "muv"
 do
 	python finetune.py \
 	--neptune_mode $NEPTUNE_MODE \

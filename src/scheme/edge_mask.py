@@ -37,9 +37,9 @@ class EdgeMaskScheme:
     def sample_edge_indices(self, data):
         num_edges = data.edge_index.size(1) // 2
         sample_size = int(num_edges * self.edge_mask_rate + 1)
-        node_indices = list(random.sample(range(num_edges), sample_size))
-        node_indices = [idx * 2 for idx in node_indices]
-        return node_indices
+        edge_indices = list(random.sample(range(num_edges), sample_size))
+        edge_indices = [idx * 2 for idx in edge_indices]
+        return edge_indices
 
     def get_models(self, num_layers, emb_dim, drop_rate):
         encoder = NodeEncoder(num_layers, emb_dim, drop_rate)
@@ -76,6 +76,9 @@ class EdgeMaskScheme:
         torch.nn.utils.clip_grad_norm_(models.parameters(), 1.0)
         optim.step()
         
-        statistics = {"loss": loss.detach(), "acc": acc}
+        statistics = {
+            "loss": loss.detach(), "acc": acc,
+            "masked_ratio": (batch.node_indices_masked0.size(0) / batch.x.size(0))
+            }
         
         return statistics     
