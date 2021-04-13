@@ -35,7 +35,7 @@ def subgraph(x, edge_index, edge_attr, aug_ratio):
     edge_index_np = edge_index.numpy()
     edge_index_np = [[idx_dict[edge_index_np[0, n]], idx_dict[edge_index_np[1, n]]] for n in range(edge_num) if (not edge_index_np[0, n] in idx_drop) and (not edge_index_np[1, n] in idx_drop)]
     try:
-        edge_index = torch.tensor(edge_index).transpose_(0, 1)
+        edge_index = torch.tensor(edge_index_np).transpose_(0, 1)
         x = x[idx_nondrop]
         edge_attr = edge_attr[edge_mask]
     except:
