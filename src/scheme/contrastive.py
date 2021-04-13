@@ -32,8 +32,8 @@ def subgraph(x, edge_index, edge_attr, aug_ratio):
     idx_dict = {idx_nondrop[n]:n for n in list(range(len(idx_nondrop)))}
     edge_mask = np.array([n for n in range(edge_num) if (edge_index_np[0, n] in idx_nondrop and edge_index_np[1, n] in idx_nondrop)])
 
-    edge_index = edge_index.numpy()
-    edge_index = [[idx_dict[edge_index[0, n]], idx_dict[edge_index[1, n]]] for n in range(edge_num) if (not edge_index[0, n] in idx_drop) and (not edge_index[1, n] in idx_drop)]
+    edge_index_np = edge_index.numpy()
+    edge_index_np = [[idx_dict[edge_index_np[0, n]], idx_dict[edge_index_np[1, n]]] for n in range(edge_num) if (not edge_index_np[0, n] in idx_drop) and (not edge_index_np[1, n] in idx_drop)]
     try:
         edge_index = torch.tensor(edge_index).transpose_(0, 1)
         x = x[idx_nondrop]
@@ -56,12 +56,12 @@ def drop_nodes(x, edge_index, edge_attr, aug_ratio):
     idx_nondrop.sort()
     idx_dict = {idx_nondrop[n]:n for n in list(range(idx_nondrop.shape[0]))}
 
-    edge_index = edge_index.numpy()
-    edge_mask = np.array([n for n in range(edge_num) if not (edge_index[0, n] in idx_drop or edge_index[1, n] in idx_drop)])
+    edge_index_np = edge_index.numpy()
+    edge_mask = np.array([n for n in range(edge_num) if not (edge_index_np[0, n] in idx_drop or edge_index_np[1, n] in idx_drop)])
 
-    edge_index = [[idx_dict[edge_index[0, n]], idx_dict[edge_index[1, n]]] for n in range(edge_num) if (not edge_index[0, n] in idx_drop) and (not edge_index[1, n] in idx_drop)]
+    edge_index_np = [[idx_dict[edge_index_np[0, n]], idx_dict[edge_index_np[1, n]]] for n in range(edge_num) if (not edge_index_np[0, n] in idx_drop) and (not edge_index_np[1, n] in idx_drop)]
     try:
-        edge_index = torch.tensor(edge_index).transpose_(0, 1)
+        edge_index = torch.tensor(edge_index_np).transpose_(0, 1)
         x = x[idx_nondrop]
         edge_attr = edge_attr[edge_mask]
     except:

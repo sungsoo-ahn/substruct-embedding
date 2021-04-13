@@ -14,7 +14,7 @@ from scheme.edge_mask_node_pred import EdgeMaskNodePredScheme
 from scheme.subgraph_mask import SubgraphMaskScheme
 from scheme.subgraph_node_mask import SubgraphNodeMaskScheme
 from scheme.contrastive import ContrastiveScheme
-from scheme.ot_contrastive import OptimalTransportContrastiveScheme
+#from scheme.ot_contrastive import OptimalTransportContrastiveScheme
 
 import neptune.new as neptune
 
@@ -23,7 +23,7 @@ from tqdm import tqdm
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", type=str, default="zinc_standard_agent")
-    parser.add_argument("--num_epochs", type=float, default=50)
+    parser.add_argument("--num_epochs", type=int, default=50)
 
     parser.add_argument("--scheme", type=str, default="subgraph_node_mask")
 
