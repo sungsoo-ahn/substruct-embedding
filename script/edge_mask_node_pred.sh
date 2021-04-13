@@ -2,8 +2,8 @@
 
 NEPTUNE_MODE=$1
 EDGE_MASK_RATIO=$2
-RUN_TAG="emnp"
-MODEL_PATH="../resource/result/${RUN_TAG}_${EDGE_MASK_RATIO}/model.pt"
+RUN_TAG="emnp_${EDGE_MASK_RATIO}"
+MODEL_PATH="../resource/result/${RUN_TAG}/model.pt"
 
 echo $NEPTUNE_MODE
 echo $WALK_LENGTH_RATE

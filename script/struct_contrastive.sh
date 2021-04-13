@@ -2,7 +2,7 @@
 
 NEPTUNE_MODE=$1
 AUG_RATE=$2
-RUN_TAG="contrastive_${AUG_RATE}"
+RUN_TAG="struct_contra_${AUG_RATE}"
 MODEL_PATH="../resource/result/${RUN_TAG}/model.pt"
 
 echo $NEPTUNE_MODE
@@ -11,7 +11,7 @@ echo $MODEL_PATH
 
 python pretrain.py \
 --neptune_mode $NEPTUNE_MODE \
---scheme contrastive \
+--scheme struct_contrastive \
 --num_epochs 10 \
 --aug_rate $AUG_RATE \
 --run_tag $RUN_TAG

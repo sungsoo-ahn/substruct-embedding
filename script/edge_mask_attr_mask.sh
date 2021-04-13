@@ -2,7 +2,7 @@
 
 NEPTUNE_MODE=$1
 EDGE_MASK_RATIO=$2
-RUN_TAG="emam"
+RUN_TAG="emam_${EDGE_MASK_RATIO}"
 MODEL_PATH="../resource/result/${RUN_TAG}/model.pt"
 
 echo $NEPTUNE_MODE
