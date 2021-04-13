@@ -2,7 +2,6 @@ import random
 import torch
 from model import NodeEncoder
 from torch_geometric.data import Data
-import ot
 import numpy as np
 import sys, os
 from torch_geometric.nn import global_add_pool

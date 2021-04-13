@@ -75,7 +75,7 @@ def main():
     parser.add_argument("--dataset", type=str, default="tox21")
     parser.add_argument("--model_path", type=str, default="")
     
-    parser.add_argument("--num_epochs", type=float, default=100)
+    parser.add_argument("--num_epochs", type=int, default=100)
 
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--num_workers", type=int, default=0)
@@ -99,6 +99,9 @@ def main():
         )
     run["parameters"] = vars(args)
 
+    best_vali_acc_list = []
+    best_test_acc_list = []
+    
     for runseed in range(args.num_runs):
         torch.manual_seed(runseed)
         np.random.seed(runseed)
@@ -173,6 +176,12 @@ def main():
 
         run[f"vali/final_acc/run{runseed}"] = best_vali_acc
         run[f"test/final_acc/run{runseed}"] = best_test_acc
-
+        
+        best_vali_acc_list.append(best_vali_acc)
+        best_test_acc_list.append(best_test_acc)
+        
+    run[f"vali/final_acc/avg"] = np.mean(best_vali_acc_list)
+    run[f"test/final_acc/avg"] = np.mean(best_test_acc_list)
+    
 if __name__ == "__main__":
     main()
