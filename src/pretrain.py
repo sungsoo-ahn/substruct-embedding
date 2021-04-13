@@ -112,7 +112,7 @@ def main():
     step = 0
     for epoch in range(args.num_epochs):
         #run[f"epoch"].log(epoch)
-        for batch in tqdm(loader):
+        for batch in loader:
             step += 1
 
             train_statistics = scheme.train_step(batch, models, optim, device)
