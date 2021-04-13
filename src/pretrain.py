@@ -15,7 +15,7 @@ from scheme.subgraph_mask import SubgraphMaskScheme
 from scheme.subgraph_node_mask import SubgraphNodeMaskScheme
 from scheme.contrastive import ContrastiveScheme
 from scheme.struct_contrastive import StructContrastiveScheme
-#from scheme.ot_contrastive import OptimalTransportContrastiveScheme
+from scheme.ot_contrastive_fast import OptimalTransportContrastiveScheme
 
 import neptune.new as neptune
 
@@ -76,7 +76,7 @@ def main():
             )
     elif args.scheme == "optimal_transport_contrastive":
         scheme = OptimalTransportContrastiveScheme(
-            aug_rate=args.aug_rate,
+            sub_num=6,
             temperature=args.contrastive_temperature
             )
     elif args.scheme == "struct_contrastive":
@@ -118,7 +118,7 @@ def main():
     step = 0
     for epoch in range(args.num_epochs):
         #run[f"epoch"].log(epoch)
-        for batch in loader:
+        for batch in tqdm(loader):
             step += 1
 
             train_statistics = scheme.train_step(batch, models, optim, device)
