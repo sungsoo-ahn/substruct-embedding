@@ -7,16 +7,18 @@ import torch
 
 from model import NodeEncoder
 from data.dataset import MoleculeDataset
-from data.dataloader import PairDataLoader
 from data.splitter import random_split
 from scheme.node_mask import NodeMaskScheme
 from scheme.edge_mask import EdgeMaskScheme
 from scheme.edge_mask_node_pred import EdgeMaskNodePredScheme
 from scheme.subgraph_mask import SubgraphMaskScheme
 from scheme.subgraph_node_mask import SubgraphNodeMaskScheme
+from scheme.contrastive import ContrastiveScheme
+from scheme.ot_contrastive import OptimalTransportContrastiveScheme
 
 import neptune.new as neptune
 
+from tqdm import tqdm
 
 def main():
     parser = argparse.ArgumentParser()
@@ -38,10 +40,12 @@ def main():
 
     parser.add_argument("--run_tag", type=str, default="")
 
+    parser.add_argument("--aug_rate", type=float, default=0.2)
     parser.add_argument("--node_mask_rate", type=float, default=0.3)
     parser.add_argument("--edge_mask_rate", type=float, default=0.3)
     parser.add_argument("--edge_attr_mask", action="store_true")
     parser.add_argument("--walk_length_rate", type=float, default=1.0)
+    parser.add_argument("--contrastive_temperature", type=float, default=5e-2)
     parser.add_argument("--neptune_mode", type=str, default="sync")
 
     args = parser.parse_args()
@@ -64,7 +68,16 @@ def main():
         scheme = SubgraphMaskScheme(walk_length_rate=args.walk_length_rate)
     elif args.scheme == "subgraph_node_mask":
         scheme = SubgraphNodeMaskScheme(walk_length_rate=args.walk_length_rate)
-        
+    elif args.scheme == "contrastive":
+        scheme = ContrastiveScheme(
+            aug_rate=args.aug_rate,
+            temperature=args.contrastive_temperature
+            )
+    elif args.scheme == "optimal_transport_contrastive":
+        scheme = OptimalTransportContrastiveScheme(
+            aug_rate=args.aug_rate,
+            temperature=args.contrastive_temperature
+            )
 
     # set up encoder
     models = scheme.get_models(
@@ -77,8 +90,12 @@ def main():
         "../resource/dataset/" + args.dataset, dataset=args.dataset, transform=scheme.transform
     )
 
-    loader = PairDataLoader(
-        dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers,
+    loader = torch.utils.data.DataLoader(
+        dataset, 
+        batch_size=args.batch_size, 
+        shuffle=True, 
+        num_workers=args.num_workers, 
+        collate_fn=scheme.collate_fn,
     )
 
     run = neptune.init(
@@ -94,8 +111,8 @@ def main():
 
     step = 0
     for epoch in range(args.num_epochs):
-        run[f"epoch"].log(epoch)
-        for batch in loader:
+        #run[f"epoch"].log(epoch)
+        for batch in tqdm(loader):
             step += 1
 
             train_statistics = scheme.train_step(batch, models, optim, device)
