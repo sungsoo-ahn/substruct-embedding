@@ -14,6 +14,7 @@ from scheme.edge_mask_node_pred import EdgeMaskNodePredScheme
 from scheme.subgraph_mask import SubgraphMaskScheme
 from scheme.subgraph_node_mask import SubgraphNodeMaskScheme
 from scheme.contrastive import ContrastiveScheme
+from scheme.struct_contrastive import StructContrastiveScheme
 #from scheme.ot_contrastive import OptimalTransportContrastiveScheme
 
 import neptune.new as neptune
@@ -78,6 +79,11 @@ def main():
             aug_rate=args.aug_rate,
             temperature=args.contrastive_temperature
             )
+    elif args.scheme == "struct_contrastive":
+        scheme = StructContrastiveScheme(
+            aug_rate=args.aug_rate,
+            temperature=args.contrastive_temperature
+        )
 
     # set up encoder
     models = scheme.get_models(
