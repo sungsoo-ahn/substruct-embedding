@@ -12,7 +12,7 @@ echo $MODEL_PATH
 python pretrain.py \
 --neptune_mode $NEPTUNE_MODE \
 --scheme struct_contrastive \
---num_epochs 10 \
+--num_epochs 50 \
 --aug_rate $AUG_RATE \
 --run_tag $RUN_TAG
 
