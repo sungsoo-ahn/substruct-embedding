@@ -8,14 +8,8 @@ import torch
 from model import NodeEncoder
 from data.dataset import MoleculeDataset
 from data.splitter import random_split
-from scheme.node_mask import NodeMaskScheme
-from scheme.edge_mask import EdgeMaskScheme
-from scheme.edge_mask_node_pred import EdgeMaskNodePredScheme
-from scheme.subgraph_mask import SubgraphMaskScheme
-from scheme.subgraph_node_mask import SubgraphNodeMaskScheme
-from scheme.contrastive import ContrastiveScheme
-from scheme.struct_contrastive import StructContrastiveScheme
-from scheme.ot_contrastive_fast import OptimalTransportContrastiveScheme
+from scheme.contrast import ContrastiveScheme
+from scheme.ot_contrast import OptimalTransportContrastiveScheme
 
 import neptune.new as neptune
 
@@ -41,12 +35,9 @@ def main():
 
     parser.add_argument("--run_tag", type=str, default="")
 
-    parser.add_argument("--aug_rate", type=float, default=0.2)
-    parser.add_argument("--node_mask_rate", type=float, default=0.3)
-    parser.add_argument("--edge_mask_rate", type=float, default=0.3)
-    parser.add_argument("--edge_attr_mask", action="store_true")
-    parser.add_argument("--walk_length_rate", type=float, default=1.0)
-    parser.add_argument("--contrastive_temperature", type=float, default=5e-2)
+    parser.add_argument("--aug_severity", type=float, default=0.2)
+    parser.add_argument("--temperature", type=float, default=5e-2)
+    
     parser.add_argument("--neptune_mode", type=str, default="sync")
 
     args = parser.parse_args()
@@ -57,34 +48,17 @@ def main():
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(0)
 
-    if args.scheme == "node_mask":
-        scheme = NodeMaskScheme(node_mask_rate=args.node_mask_rate)
-    elif args.scheme == "edge_mask":
-        scheme = EdgeMaskScheme(
-            edge_mask_rate=args.edge_mask_rate, edge_attr_mask=args.edge_attr_mask
-            )
-    elif args.scheme == "edge_mask_node_pred":
-        scheme = EdgeMaskNodePredScheme(edge_mask_rate=args.edge_mask_rate)
-    elif args.scheme == "subgraph_mask":
-        scheme = SubgraphMaskScheme(walk_length_rate=args.walk_length_rate)
-    elif args.scheme == "subgraph_node_mask":
-        scheme = SubgraphNodeMaskScheme(walk_length_rate=args.walk_length_rate)
-    elif args.scheme == "contrastive":
+    if args.scheme == "contrast":
         scheme = ContrastiveScheme(
-            aug_rate=args.aug_rate,
-            temperature=args.contrastive_temperature
+            transform=lambda data: random_transform(data, args.aug_severity)
+            temperature=args.temperature
             )
-    elif args.scheme == "optimal_transport_contrastive":
+    elif args.scheme == "ot_contrast":
         scheme = OptimalTransportContrastiveScheme(
-            sub_num=6,
-            temperature=args.contrastive_temperature
+            transform=lambda data: random_transform(data, args.aug_severity)
+            temperature=args.temperature
             )
-    elif args.scheme == "struct_contrastive":
-        scheme = StructContrastiveScheme(
-            aug_rate=args.aug_rate,
-            temperature=args.contrastive_temperature
-        )
-
+    
     # set up encoder
     models = scheme.get_models(
         num_layers=args.num_layers, emb_dim=args.emb_dim, drop_rate=args.drop_rate
