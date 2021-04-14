@@ -1,9 +1,9 @@
 #!/bin/bash
-#SBATCH --job-name=nm
+#SBATCH --job-name=contrastive
 #SBATCH --partition=mbzuai
 #SBATCH --ntasks=1
 #SBATCH --time=24:00:00
-#SBATCH --output=/nfs/projects/mbzuai/peterahn/workspace/substruct-embedding/resource/result/submit_nm.log
+#SBATCH --output=/nfs/projects/mbzuai/peterahn/workspace/substruct-embedding/resource/result/contrastive.log
 #SBATCH -N 1
 #SBATCH -G 1
 
@@ -14,4 +14,4 @@ srun \
   --no-container-mount-home \
   --container-mounts="/nfs/projects/mbzuai/peterahn/workspace/substruct-embedding:/substruct-embedding" \
   --container-workdir="/substruct-embedding/src" \
-  bash ../script/node_mask.sh "async"
+  bash ../script/contrast.sh "async"
