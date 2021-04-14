@@ -61,8 +61,6 @@ class MoleculeDataset(InMemoryDataset):
             s[data.__cat_dim__(key, item)] = slice(slices[idx], slices[idx + 1])
             data[key] = item[s]
 
-        #data.smiles = self.smiles_list[slice(slices[idx], slices[idx + 1])][0]
-
         return data
 
     @property

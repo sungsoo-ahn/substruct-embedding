@@ -1,4 +1,3 @@
-import random
 import numpy as np
 import torch
 from torch_geometric.data import Data
@@ -6,31 +5,18 @@ from torch_geometric.data import Data
 from model import GraphEncoder
 from util import compute_accuracy
 
-from data.transform import subgraph, drop_nodes, random_transform
-
 class ContrastiveScheme:
     criterion = torch.nn.CrossEntropyLoss()
     def __init__(self, transform, temperature):
-        self.transform = transform
+        self._transform = transform
         self.temperature = temperature
         
-    @staticmethod
-    def transform(self, data):
-        data0 = random_transform(data)
-        if data0 is None:
-            return None
-        
-        data1 = random_transform(data)
-        if data1 is None:
-            return None
-        
-        return data0, data1
-
     @staticmethod
     def collate_fn(data_list):
         data_list = [elem for elem in data_list if elem is not None]
         data_list = list(zip(*data_list))
         data_list = [data for inner_data_list in data_list for data in inner_data_list]
+                
         keys = [set(data.keys) for data in data_list]
         keys = list(set.union(*keys))
 
@@ -64,6 +50,21 @@ class ContrastiveScheme:
             batch[key] = torch.cat(batch[key], dim=data_list[0].__cat_dim__(key, batch[key][0]))
         
         return batch.contiguous()
+    
+    def transform(self, data):    
+        x, edge_index, edge_attr = self._transform(data.x.clone(), data.edge_index.clone(), data.edge_attr.clone())
+        if x.size(0) == 0:
+            return None
+
+        data0 = Data(x=x, edge_index=edge_index, edge_attr=edge_attr)
+        
+        x, edge_index, edge_attr = self._transform(data.x.clone(), data.edge_index.clone(), data.edge_attr.clone())
+        if x.size(0) == 0:
+            return None
+
+        data1 = Data(x=x, edge_index=edge_index, edge_attr=edge_attr)
+        
+        return data0, data1
 
     def get_models(self, num_layers, emb_dim, drop_rate):
         encoder = GraphEncoder(num_layers, emb_dim, drop_rate)
@@ -79,16 +80,19 @@ class ContrastiveScheme:
         models.train()
         batch = batch.to(device)
         
-        out = models["encoder"](batch.x, batch.edge_index, batch.edge_attr)
+        out = models["encoder"](batch.x, batch.edge_index, batch.edge_attr, batch.batch)
         out = models["head"](out)   
         out = torch.nn.functional.normalize(out, dim=1)
+        
+        loss = torch.mean(out)
+        acc = 0
+        
         graphwise_score = torch.matmul(out, out.T)
         
-        logits, labels = self.get_logits_and_labels(graphwise_score, self.temperature, device)
+        logits, labels = self.get_logits_and_labels(graphwise_score, device)
         loss = self.criterion(logits, labels)
         
-        with torch.no_grad():
-            acc = self.compute_accuracy(logits, labels)
+        acc = compute_accuracy(logits, labels)
         
         optim.zero_grad()
         loss.backward()
@@ -98,7 +102,7 @@ class ContrastiveScheme:
         
         return statistics
 
-    def get_logits_and_labels(self, similarity_matrix, temperature, device):
+    def get_logits_and_labels(self, similarity_matrix, device):
         batch_size = similarity_matrix.size(0) // 2        
         
         labels = torch.cat([torch.arange(batch_size) for i in range(2)], dim=0)
@@ -115,5 +119,5 @@ class ContrastiveScheme:
         logits = torch.cat([positives, negatives], dim=1)
         labels = torch.zeros(logits.shape[0], dtype=torch.long).to(device)
 
-        logits = logits / temperature
+        logits = logits / self.temperature
         return logits, labels

@@ -1,13 +1,18 @@
+import random
+import numpy as np
+import torch
 from torch_geometric.data import Data
+from torch_geometric.utils import subgraph
 
+"""
 def subgraph(data, aug_severity):
-    aug_ratio = [0.1, 0.2, 0.3, 0.4, 0.5][aug_severity]
+    aug_rate = [0.1, 0.2, 0.3, 0.4, 0.5][aug_severity]
 
     x, edge_index, edge_attr = data.x.clone(), data.edge_index.clone(), data.edge_attr.clone()
     
     node_num, _ = x.size()
     _, edge_num = edge_index.size()
-    sub_num = int(node_num * aug_ratio)
+    sub_num = int(node_num * aug_rate)
 
     edge_index_np = edge_index.numpy()
 
@@ -44,46 +49,45 @@ def subgraph(data, aug_severity):
     data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr)
 
     return data
+"""
+
+def drop_nodes(x, edge_index, edge_attr, aug_severity):
+    drop_rate = [0.1, 0.3, 0.5][aug_severity]
+        
+    num_nodes = x.size(0)
+    num_keep_nodes = min(int((1-drop_rate) * num_nodes), num_nodes - 1)
+    keep_nodes = list(sorted(random.sample(range(num_nodes), num_keep_nodes)))
+
+    x = x[keep_nodes].clone()
+    edge_index, edge_attr = subgraph(
+        keep_nodes, 
+        edge_index, 
+        edge_attr=edge_attr, 
+        relabel_nodes=True, 
+        num_nodes=num_nodes,
+        )
+
+    return x, edge_index, edge_attr
 
 
-def drop_nodes(data, aug_severity):
-    aug_ratio = [0.1, 0.2, 0.3, 0.4, 0.5][aug_severity]
+def mask_nodes(x, edge_index, edge_attr, aug_severity):
+    mask_rate = [0.3, 0.6, 0.9][aug_severity]
+    num_nodes = x.size(0)
+    num_mask_nodes = min(int(mask_rate * num_nodes), 1)
+    mask_nodes = list(sorted(random.sample(range(num_nodes), num_mask_nodes)))
     
-    x, edge_index, edge_attr = data.x.clone(), data.edge_index.clone(), data.edge_attr.clone()
-
-    node_num, _ = x.size()
-    _, edge_num = edge_index.size()
-    drop_num = int(node_num  * aug_ratio)
-
-    idx_perm = np.random.permutation(node_num)
-
-    idx_drop = idx_perm[:drop_num]
-    idx_nondrop = idx_perm[drop_num:]
-    idx_nondrop.sort()
-    idx_dict = {idx_nondrop[n]:n for n in list(range(idx_nondrop.shape[0]))}
-
-    edge_index_np = edge_index.numpy()
-    edge_mask = np.array([n for n in range(edge_num) if not (edge_index_np[0, n] in idx_drop or edge_index_np[1, n] in idx_drop)])
-
-    edge_index_np = [[idx_dict[edge_index_np[0, n]], idx_dict[edge_index_np[1, n]]] for n in range(edge_num) if (not edge_index_np[0, n] in idx_drop) and (not edge_index_np[1, n] in idx_drop)]
-    try:
-        edge_index = torch.tensor(edge_index_np).transpose_(0, 1)
-        x = x[idx_nondrop]
-        edge_attr = edge_attr[edge_mask]
-    except:
-        pass
+    x = x.clone()
+    x[mask_nodes] = 0
     
-    data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr)
-
-    return data
+    return x, edge_index, edge_attr
 
 
-def random_transform(data, aug_severity):
-    n = np.random.randint(2)
-    if n == 0:
-        data = drop_nodes(data, aug_severity)
-    elif n == 1:
-        data = subgraph(data, aug_severity)
+def compose(transforms):
+    def composed_transform(x, edge_index, edge_attr):
+        for transform in transforms:
+            x, edge_index, edge_attr = transform(x, edge_index, edge_attr)
+        
+        return x, edge_index, edge_attr
     
-    return data
+    return composed_transform
 
