@@ -13,13 +13,7 @@ def log_sinkhorn_iterations(Z, log_mu, log_nu, batch, batch_num_nodes, num_iters
     u, v = torch.zeros_like(log_mu), torch.zeros_like(log_nu)
     for _ in range(num_iters):
         tmp = Z + torch.repeat_interleave(v, batch_num_nodes, dim=0)
-        tmp = global_add_pool(tmp.T.exp(), batch).log().T
-        
-        if tmp.size(1) != log_mu.size(1):
-            print(log_mu.size())
-            print(tmp.size())
-            print(batch.size())
-        
+        tmp = global_add_pool(tmp.T.exp(), batch).log().T        
         u = log_mu - tmp
 
         tmp = Z + torch.repeat_interleave(u, batch_num_nodes, dim=1)

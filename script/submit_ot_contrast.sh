@@ -9,11 +9,11 @@
 
 export NEPTUNE_API_TOKEN="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vdWkubmVwdHVuZS5haSIsImFwaV91cmwiOiJodHRwczovL3VpLm5lcHR1bmUuYWkiLCJhcGlfa2V5IjoiMjY3ZDAyMWYtZWQ5MC00NGQwLTg4OWItN2U3YzU4YWE3YzJkIn0="
 
-SINKHORN_ITERS=$1
+AUG_SEVERITY=$1
 
 srun \
   --container-image=sungsahn0215/substruct-embedding:main \
   --no-container-mount-home \
   --container-mounts="/nfs/projects/mbzuai/peterahn/workspace/substruct-embedding:/substruct-embedding" \
   --container-workdir="/substruct-embedding/src" \
-  bash ../script/ot_contrast.sh "async" $SINKHORN_ITERS
+  bash ../script/ot_contrast.sh "async" $AUG_SEVERITY

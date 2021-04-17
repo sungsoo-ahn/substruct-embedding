@@ -1,8 +1,8 @@
 #!/bin/bash
 
 NEPTUNE_MODE=$1
-SINKHORN_ITER=$2
-RUN_TAG="contrast_${SINKHORN_ITER}"
+AUG_SEVERITY=$2
+RUN_TAG="ot_contrast_${AUG_SEVERITY}"
 MODEL_PATH="../resource/result/${RUN_TAG}/model.pt"
 
 echo $NEPTUNE_MODE
@@ -12,8 +12,8 @@ echo $MODEL_PATH
 python pretrain.py \
 --neptune_mode $NEPTUNE_MODE \
 --scheme ot_contrast \
---num_epochs 5 \
---num_sinkhorn_iters $SINKHORN_ITER \
+--num_epochs 20 \
+--aug_severity $AUG_SEVERITY \
 --run_tag $RUN_TAG
 
 for DATASET in "tox21" "bace" "bbbp" "toxcast" "sider" "clintox" "hiv" "muv"
