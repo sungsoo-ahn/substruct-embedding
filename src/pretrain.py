@@ -9,8 +9,8 @@ from model import NodeEncoder
 from data.dataset import MoleculeDataset
 from data.splitter import random_split
 from data.transform import compose, drop_nodes, mask_nodes
-from scheme.contrastive import ContrastiveScheme
-from scheme.optimal_transport_contrastive import OptimalTransportContrastiveScheme
+from scheme.graph_contrastive import GraphContrastiveScheme
+from scheme.node_contrastive import NodeContrastiveScheme
 
 import neptune.new as neptune
 
@@ -40,7 +40,7 @@ def main():
     parser.add_argument("--aug_severity", type=int, default=0)
     parser.add_argument("--temperature", type=float, default=5e-2)
     parser.add_argument("--num_sinkhorn_iters", type=int, default=5)
-    
+
     parser.add_argument("--neptune_mode", type=str, default="async")
 
     args = parser.parse_args()
@@ -51,18 +51,14 @@ def main():
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(0)
 
-    data_transform = (
-        lambda x, edge_index, edg_attr: drop_nodes(x, edge_index, edg_attr, aug_severity=args.aug_severity)
+    data_transform = lambda x, edge_index, edg_attr: mask_nodes(
+        x, edge_index, edg_attr, aug_severity=args.aug_severity
     )
 
-    if args.scheme == "contrast":
-        scheme = ContrastiveScheme(transform=data_transform, temperature=args.temperature)
-    elif args.scheme == "ot_contrast":
-        scheme = OptimalTransportContrastiveScheme(
-            transform=data_transform, 
-            temperature=args.temperature, 
-            num_sinkhorn_iters=args.num_sinkhorn_iters
-        )
+    if args.scheme == "graph_contrastive":
+        scheme = GraphContrastiveScheme(transform=data_transform, temperature=args.temperature)
+    elif args.scheme == "node_contrastive":
+        scheme = NodeContrastiveScheme(transform=data_transform, temperature=args.temperature)
 
     # set up encoder
     models = scheme.get_models(
@@ -84,13 +80,13 @@ def main():
     )
 
     run = neptune.init(
-       project="sungsahn0215/relation-embedding", name="train_embedding", mode=args.neptune_mode
+        project="sungsahn0215/substruct-embedding", name="train_embedding", mode=args.neptune_mode
     )
     run["parameters"] = vars(args)
     if args.run_tag == "":
-       run_tag = run["sys/id"].fetch()
+        run_tag = run["sys/id"].fetch()
     else:
-       run_tag = args.run_tag
+        run_tag = args.run_tag
     os.makedirs(f"../resource/result/{run_tag}", exist_ok=True)
 
     step = 0
@@ -102,8 +98,8 @@ def main():
             train_statistics = scheme.train_step(batch, models, optim, device)
 
             if step % args.log_freq == 0:
-               for key, val in train_statistics.items():
-                   run[f"train/{key}"].log(val)
+                for key, val in train_statistics.items():
+                    run[f"train/{key}"].log(val)
 
         torch.save(
             models["encoder"].state_dict(), f"../resource/result/{run_tag}/model_{epoch:02d}.pt"

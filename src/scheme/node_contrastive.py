@@ -2,11 +2,11 @@ import numpy as np
 import torch
 from torch_geometric.data import Data
 
-from model import GraphEncoder
+from model import NodeEncoder
 from util import compute_accuracy
 
 
-class GraphContrastiveScheme:
+class NodeContrastiveScheme:
     criterion = torch.nn.CrossEntropyLoss()
 
     def __init__(self, transform, temperature):
@@ -73,7 +73,7 @@ class GraphContrastiveScheme:
         return data0, data1
 
     def get_models(self, num_layers, emb_dim, drop_rate):
-        encoder = GraphEncoder(num_layers, emb_dim, drop_rate)
+        encoder = NodeEncoder(num_layers, emb_dim, drop_rate)
         head = torch.nn.Sequential(
             torch.nn.Linear(emb_dim, emb_dim), torch.nn.ReLU(), torch.nn.Linear(emb_dim, emb_dim),
         )
@@ -84,20 +84,25 @@ class GraphContrastiveScheme:
         models.train()
         batch = batch.to(device)
 
-        out = models["encoder"](batch.x, batch.edge_index, batch.edge_attr, batch.batch)
+        out = models["encoder"](batch.x, batch.edge_index, batch.edge_attr)
         out = models["head"](out)
         out = torch.nn.functional.normalize(out, dim=1)
 
-        loss = torch.mean(out)
-        acc = 0
+        out0, out1 = torch.chunk(out, 2, dim=0)
+        out0 = torch.split(out0, batch.batch_num_nodes.tolist()[:batch.batch_size // 2])
+        out1 = torch.split(out1, batch.batch_num_nodes.tolist()[:batch.batch_size // 2])
 
-        graphwise_score = torch.matmul(out, out.T)
-
-        logits, labels = self.get_logits_and_labels(graphwise_score, device)
-        loss = self.criterion(logits, labels)
-
-        acc = compute_accuracy(logits, labels)
-
+        loss = 0.0
+        acc = 0.0        
+        for idx in range(batch.batch_size // 2):            
+            logits = torch.matmul(out0[idx], out1[idx].T) / self.temperature
+            labels = torch.arange(out0[idx].size(0)).to(device)
+            loss_ = self.criterion(logits, labels)
+            acc_ = compute_accuracy(logits, labels)
+            
+            loss += loss_ / (batch.batch_size // 2)
+            acc += acc_ / (batch.batch_size // 2)
+                            
         optim.zero_grad()
         loss.backward()
         optim.step()
@@ -105,23 +110,3 @@ class GraphContrastiveScheme:
         statistics = {"loss": loss.detach(), "acc": acc}
 
         return statistics
-
-    def get_logits_and_labels(self, similarity_matrix, device):
-        batch_size = similarity_matrix.size(0) // 2
-
-        labels = torch.cat([torch.arange(batch_size) for i in range(2)], dim=0)
-        labels = (labels.unsqueeze(0) == labels.unsqueeze(1)).float()
-        labels = labels.to(device)
-
-        mask = torch.eye(labels.shape[0], dtype=torch.bool).to(device)
-        labels = labels[~mask].view(labels.shape[0], -1)
-        similarity_matrix = similarity_matrix[~mask].view(similarity_matrix.shape[0], -1)
-
-        positives = similarity_matrix[labels.bool()].view(labels.shape[0], -1)
-        negatives = similarity_matrix[~labels.bool()].view(similarity_matrix.shape[0], -1)
-
-        logits = torch.cat([positives, negatives], dim=1)
-        labels = torch.zeros(logits.shape[0], dtype=torch.long).to(device)
-
-        logits = logits / self.temperature
-        return logits, labels

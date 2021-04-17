@@ -156,6 +156,7 @@ def graph_data_obj_to_smarts(data_x, data_edge_index, data_edge_attr):
     smarts = Chem.MolToSmarts(mol)
     return smarts
 
+
 def create_standardized_mol_id(smiles):
     """
 

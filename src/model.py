@@ -67,9 +67,9 @@ class NodeEncoder(nn.Module):
 
         self.layers = nn.ModuleList([GINConv(emb_dim) for _ in range(num_layers)])
         self.batch_norms = nn.ModuleList([nn.BatchNorm1d(emb_dim) for _ in range(num_layers)])
-        self.relus = nn.ModuleList([nn.ReLU(emb_dim) for _ in range(num_layers-1)])
+        self.relus = nn.ModuleList([nn.ReLU(emb_dim) for _ in range(num_layers - 1)])
         self.dropouts = nn.ModuleList([nn.Dropout(p=drop_rate) for _ in range(num_layers)])
-         
+
     def forward(self, x, edge_index, edge_attr):
         out = self.x_embedding1(x[:, 0]) + self.x_embedding2(x[:, 1])
 
@@ -78,10 +78,11 @@ class NodeEncoder(nn.Module):
             out = self.batch_norms[layer_idx](out)
             if layer_idx < self.num_layers - 1:
                 out = self.relus[layer_idx](out)
-            
+
             out = self.dropouts[layer_idx](out)
 
         return out
+
 
 class NodeEncoderWithHead(nn.Module):
     def __init__(self, num_head_layers, head_dim, num_encoder_layers, emb_dim, drop_rate):
@@ -89,14 +90,12 @@ class NodeEncoderWithHead(nn.Module):
 
         self.encoder = NodeEncoder(
             num_layers=num_encoder_layers, emb_dim=emb_dim, drop_rate=drop_rate
-            )
+        )
         if num_head_layers == 1:
             self.head = nn.Linear(emb_dim, head_dim)
         elif num_head_layers == 2:
             self.head = nn.Sequential(
-                nn.Linear(emb_dim, emb_dim),
-                nn.ReLU(),
-                nn.Linear(emb_dim, head_dim),
+                nn.Linear(emb_dim, emb_dim), nn.ReLU(), nn.Linear(emb_dim, head_dim),
             )
         else:
             raise NotImplementedError
@@ -106,6 +105,7 @@ class NodeEncoderWithHead(nn.Module):
         out = self.head(out)
 
         return out
+
 
 class GraphEncoder(NodeEncoder):
     def __init__(self, num_layers, emb_dim, drop_rate):
@@ -124,14 +124,12 @@ class GraphEncoderWithHead(nn.Module):
 
         self.encoder = GraphEncoder(
             num_layers=num_encoder_layers, emb_dim=emb_dim, drop_rate=drop_rate
-            )
+        )
         if num_head_layers == 1:
             self.head = nn.Linear(emb_dim, head_dim)
         elif num_head_layers == 2:
             self.head = nn.Sequential(
-                nn.Linear(emb_dim, emb_dim),
-                nn.ReLU(),
-                nn.Linear(emb_dim, head_dim),
+                nn.Linear(emb_dim, emb_dim), nn.ReLU(), nn.Linear(emb_dim, head_dim),
             )
         else:
             raise NotImplementedError
@@ -141,4 +139,3 @@ class GraphEncoderWithHead(nn.Module):
         out = self.head(out)
 
         return out
-

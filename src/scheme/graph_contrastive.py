@@ -88,9 +88,6 @@ class GraphContrastiveScheme:
         out = models["head"](out)
         out = torch.nn.functional.normalize(out, dim=1)
 
-        loss = torch.mean(out)
-        acc = 0
-
         graphwise_score = torch.matmul(out, out.T)
 
         logits, labels = self.get_logits_and_labels(graphwise_score, device)

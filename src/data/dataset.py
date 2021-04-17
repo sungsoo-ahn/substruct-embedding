@@ -26,6 +26,7 @@ from data.util import (
     create_standardized_mol_id,
 )
 
+
 class MoleculeDataset(InMemoryDataset):
     def __init__(
         self,

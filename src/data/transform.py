@@ -51,21 +51,18 @@ def subgraph(data, aug_severity):
     return data
 """
 
+
 def drop_nodes(x, edge_index, edge_attr, aug_severity):
     drop_rate = [0.1, 0.3, 0.5][aug_severity]
-        
+
     num_nodes = x.size(0)
-    num_keep_nodes = min(int((1-drop_rate) * num_nodes), num_nodes - 1)
+    num_keep_nodes = min(int((1 - drop_rate) * num_nodes), num_nodes - 1)
     keep_nodes = list(sorted(random.sample(range(num_nodes), num_keep_nodes)))
 
     x = x[keep_nodes].clone()
     edge_index, edge_attr = subgraph(
-        keep_nodes, 
-        edge_index, 
-        edge_attr=edge_attr, 
-        relabel_nodes=True, 
-        num_nodes=num_nodes,
-        )
+        keep_nodes, edge_index, edge_attr=edge_attr, relabel_nodes=True, num_nodes=num_nodes,
+    )
 
     return x, edge_index, edge_attr
 
@@ -86,8 +83,7 @@ def compose(transforms):
     def composed_transform(x, edge_index, edge_attr):
         for transform in transforms:
             x, edge_index, edge_attr = transform(x, edge_index, edge_attr)
-        
-        return x, edge_index, edge_attr
-    
-    return composed_transform
 
+        return x, edge_index, edge_attr
+
+    return composed_transform

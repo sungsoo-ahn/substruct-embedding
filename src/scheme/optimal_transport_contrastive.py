@@ -8,18 +8,17 @@ from model import NodeEncoder
 from util import compute_accuracy
 
 
-
 def log_sinkhorn_iterations(Z, log_mu, log_nu, batch, batch_num_nodes, num_iters):
     u, v = torch.zeros_like(log_mu), torch.zeros_like(log_nu)
     for _ in range(num_iters):
         tmp = Z + torch.repeat_interleave(v, batch_num_nodes, dim=0)
         tmp = global_add_pool(tmp.T.exp(), batch).log().T
-        
+
         if tmp.size(1) != log_mu.size(1):
             print(log_mu.size())
             print(tmp.size())
             print(batch.size())
-        
+
         u = log_mu - tmp
 
         tmp = Z + torch.repeat_interleave(u, batch_num_nodes, dim=1)
@@ -37,8 +36,8 @@ def compute_log_coupling(score, batch, batch_num_nodes, num_sinkhorn_iters, devi
     batch_size = batch_num_nodes.size(0)
 
     norm = -(batch_num_nodes.unsqueeze(0) + batch_num_nodes.unsqueeze(1)).float().log()
-    log_mu = torch.repeat_interleave(norm, batch_num_nodes, dim=0) #batch_num_nodes x batch_size
-    log_nu = torch.repeat_interleave(norm, batch_num_nodes, dim=1) #batch_size x batch_num_nodes
+    log_mu = torch.repeat_interleave(norm, batch_num_nodes, dim=0)  # batch_num_nodes x batch_size
+    log_nu = torch.repeat_interleave(norm, batch_num_nodes, dim=1)  # batch_size x batch_num_nodes
 
     log_coupling = log_sinkhorn_iterations(
         score, log_mu, log_nu, batch, batch_num_nodes, num_sinkhorn_iters
@@ -48,6 +47,7 @@ def compute_log_coupling(score, batch, batch_num_nodes, num_sinkhorn_iters, devi
     log_coupling = log_coupling - norm
 
     return log_coupling
+
 
 """
 def org_log_sinkhorn_iterations(Z, log_mu, log_nu, batch, batch_num_nodes, num_iters):
@@ -77,6 +77,7 @@ def org_compute_log_coupling(score, batch, batch_num_nodes, num_sinkhorn_iters, 
     return log_coupling
 """
 
+
 class OptimalTransportContrastiveScheme(ContrastiveScheme):
     criterion = torch.nn.CrossEntropyLoss()
 
@@ -101,17 +102,17 @@ class OptimalTransportContrastiveScheme(ContrastiveScheme):
         out = torch.nn.functional.normalize(out, dim=1)
         nodewise_score = torch.matmul(out, out.T)
 
-        #with torch.no_grad():
+        # with torch.no_grad():
         log_coupling = compute_log_coupling(
             nodewise_score, batch.batch, batch.batch_num_nodes, self.num_sinkhorn_iters, device
         )
-        
+
         coupling = log_coupling.exp()
-        #normalizer = global_add_pool(coupling, batch.batch)
-        #normalizer = global_add_pool(normalizer.T, batch.batch)
-        #normalizer = torch.repeat_interleave(normalizer, batch.batch_num_nodes, dim=0)
-        #normalizer = torch.repeat_interleave(normalizer, batch.batch_num_nodes, dim=1)
-        #coupling = coupling / normalizer
+        # normalizer = global_add_pool(coupling, batch.batch)
+        # normalizer = global_add_pool(normalizer.T, batch.batch)
+        # normalizer = torch.repeat_interleave(normalizer, batch.batch_num_nodes, dim=0)
+        # normalizer = torch.repeat_interleave(normalizer, batch.batch_num_nodes, dim=1)
+        # coupling = coupling / normalizer
 
         coupling_label = torch.arange(coupling.size(0)).to(device)
         coupling_acc = compute_accuracy(coupling, coupling_label)
