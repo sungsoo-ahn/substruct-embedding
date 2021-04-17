@@ -1,7 +1,7 @@
 #!/bin/bash
 
 NEPTUNE_MODE=$1
-RUN_TAG="contrast"
+RUN_TAG="node_contrastive"
 MODEL_PATH="../resource/result/${RUN_TAG}/model.pt"
 
 echo $NEPTUNE_MODE
@@ -10,11 +10,11 @@ echo $MODEL_PATH
 
 python pretrain.py \
 --neptune_mode $NEPTUNE_MODE \
---scheme contrast \
---num_epochs 5 \
+--scheme node_contrastive \
+--num_epochs 10 \
 --run_tag $RUN_TAG
 
-for DATASET in "tox21" "bace" "bbbp" "toxcast" "sider" "clintox" "hiv" "muv"
+for DATASET in "tox21" "bace" "bbbp" "toxcast" "sider" "clintox" "hiv"
 do
 	python finetune.py \
 	--neptune_mode $NEPTUNE_MODE \

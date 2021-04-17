@@ -53,8 +53,8 @@ def subgraph(data, aug_severity):
 
 
 def drop_nodes(x, edge_index, edge_attr, aug_severity):
-    drop_rate = [0.1, 0.3, 0.5][aug_severity]
-
+    drop_rate = [0.1, 0.2, 0.3][aug_severity]
+        
     num_nodes = x.size(0)
     num_keep_nodes = min(int((1 - drop_rate) * num_nodes), num_nodes - 1)
     keep_nodes = list(sorted(random.sample(range(num_nodes), num_keep_nodes)))
