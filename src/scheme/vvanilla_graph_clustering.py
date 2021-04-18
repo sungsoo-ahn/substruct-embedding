@@ -7,7 +7,7 @@ import faiss
 from model import GraphEncoder
 from util import compute_accuracy
 
-class GraphClusteringScheme:
+class VVanillaGraphClusteringScheme:
     criterion = torch.nn.CrossEntropyLoss()
 
     def __init__(self, num_clusters, transform, temperature):
@@ -22,10 +22,6 @@ class GraphClusteringScheme:
         
     @staticmethod
     def collate_fn(data_list):
-        data_list = [elem for elem in data_list if elem is not None]
-        data_list = list(zip(*data_list))
-        data_list = [data for inner_data_list in data_list for data in inner_data_list]
-
         keys = [set(data.keys) for data in data_list]
         keys = list(set.union(*keys))
 
@@ -70,16 +66,7 @@ class GraphClusteringScheme:
         data0 = Data(x=x, edge_index=edge_index, edge_attr=edge_attr)
         data0.dataset_idx = data.dataset_idx
 
-        x, edge_index, edge_attr = self._transform(
-            data.x.clone(), data.edge_index.clone(), data.edge_attr.clone()
-        )
-        if x.size(0) == 0:
-            return None
-
-        data1 = Data(x=x, edge_index=edge_index, edge_attr=edge_attr)
-        data1.dataset_idx = data.dataset_idx
-        
-        return data0, data1
+        return data0
 
     def get_models(self, num_layers, emb_dim, drop_rate):
         encoder = GraphEncoder(num_layers, emb_dim, drop_rate)
@@ -172,20 +159,13 @@ class GraphClusteringScheme:
         out = models["head"](out)
         features = torch.nn.functional.normalize(out, p=2, dim=1)
 
-        logits, labels = self.get_logits_and_labels(features, device)
-        loss = loss_contrastive = self.criterion(logits, labels)
-        acc_contrastive = compute_accuracy(logits, labels)
+        proto_logits, proto_labels = self.get_proto_logits_and_labels(
+            batch.dataset_idx, features, device
+            )
 
-        if self.centroids is not None:
-            proto_logits, proto_labels = self.get_proto_logits_and_labels(
-                batch.dataset_idx.chunk(2, dim=0)[0], 
-                features.chunk(2, dim=0)[0], 
-                device
-                )
-            loss_proto = self.criterion(proto_logits, proto_labels)
-            acc_proto = compute_accuracy(proto_logits, proto_labels)
-                
-            loss += loss_proto   
+        loss_proto = self.criterion(proto_logits, proto_labels)
+        acc_proto = compute_accuracy(proto_logits, proto_labels)
+        loss = loss_proto   
 
         optim.zero_grad()
         loss.backward()
@@ -193,39 +173,11 @@ class GraphClusteringScheme:
 
         statistics = {
             "loss": loss,
-            "loss_contrastive": loss_contrastive.detach(), 
-            "acc_contrastive": acc_contrastive,
+            "loss_proto": loss_proto.detach(),
+            "acc_proto": acc_proto,
             }
-        if self.centroids is not None:
-            statistics.update({
-                "loss_proto": loss_proto.detach(),
-                "acc_proto": acc_proto,
-            })
 
         return statistics
-
-    def get_logits_and_labels(self, features, device):
-        similarity_matrix = torch.matmul(features, features.T)
-
-        batch_size = similarity_matrix.size(0) // 2
-
-        labels = torch.cat([torch.arange(batch_size) for i in range(2)], dim=0)
-        labels = (labels.unsqueeze(0) == labels.unsqueeze(1)).float()
-        labels = labels.to(device)
-
-        mask = torch.eye(labels.shape[0], dtype=torch.bool).to(device)
-        labels = labels[~mask].view(labels.shape[0], -1)
-        similarity_matrix = similarity_matrix[~mask].view(similarity_matrix.shape[0], -1)
-
-        positives = similarity_matrix[labels.bool()].view(labels.shape[0], -1)
-        negatives = similarity_matrix[~labels.bool()].view(similarity_matrix.shape[0], -1)
-
-        logits = torch.cat([positives, negatives], dim=1)
-        labels = torch.zeros(logits.shape[0], dtype=torch.long).to(device)
-
-        logits = logits / self.temperature
-        
-        return logits, labels
 
     def get_proto_logits_and_labels(self, dataset_idx, features, device):
         # get positive prototypes

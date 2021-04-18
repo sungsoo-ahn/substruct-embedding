@@ -13,7 +13,7 @@ from data.transform import compose, drop_nodes, mask_nodes
 from scheme.graph_clustering import GraphClusteringScheme
 from scheme.euclidean_graph_clustering import EuclideanGraphClusteringScheme
 from scheme.vanilla_graph_clustering import VanillaGraphClusteringScheme
-from scheme.sharpening_graph_clustering import SharpeningGraphClusteringScheme
+from scheme.vvanilla_graph_clustering import VVanillaGraphClusteringScheme
 from evaluate_knn import get_eval_datasets, evaluate_knn
 
 import neptune.new as neptune
@@ -83,16 +83,15 @@ def main():
             transform=data_transform, 
             temperature=args.temperature
             )
-    elif args.scheme == "sharpening_graph_clustering":
+    elif args.scheme == "vvanilla_graph_clustering":
         data_transform = lambda x, edge_index, edge_attr: mask_nodes(
             x, edge_index, edge_attr, aug_severity=args.aug_severity
         )
-        scheme = SharpeningGraphClusteringScheme(
+        scheme = VVanillaGraphClusteringScheme(
             num_clusters=args.num_clusters, 
             transform=data_transform, 
             temperature=args.temperature
             )
-        
     
     print("Loading model...")
     models = scheme.get_models(
@@ -105,7 +104,7 @@ def main():
     dataset = MoleculeDataset(
         "../resource/dataset/" + args.dataset, dataset=args.dataset, transform=scheme.transform
     )
-    #dataset = torch.utils.data.Subset(dataset, range(10000))
+    dataset = torch.utils.data.Subset(dataset, range(10000))
     loader = torch.utils.data.DataLoader(
         dataset,
         batch_size=args.batch_size,
@@ -116,7 +115,7 @@ def main():
 
     print("Loading cluster dataset...")
     cluster_dataset = MoleculeDataset("../resource/dataset/" + args.dataset, dataset=args.dataset)
-    #cluster_dataset = torch.utils.data.Subset(cluster_dataset, range(10000))
+    cluster_dataset = torch.utils.data.Subset(cluster_dataset, range(10000))
     cluster_loader = torch_geometric.data.DataLoader(
         cluster_dataset,
         batch_size=args.cluster_batch_size,
