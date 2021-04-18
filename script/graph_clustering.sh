@@ -2,7 +2,7 @@
 
 NEPTUNE_MODE=$1
 NUM_CLUSTERS=$2
-RUN_TAG="graph_clustering"
+RUN_TAG="graph_clustering_${NUM_CLUSTERS}"
 MODEL_PATH="../resource/result/${RUN_TAG}/model.pt"
 
 echo $NEPTUNE_MODE
