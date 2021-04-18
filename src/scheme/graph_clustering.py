@@ -98,6 +98,7 @@ class GraphClusteringScheme:
                     batch.x, batch.edge_index, batch.edge_attr, batch.batch
                 )
         
+        features = torch.nn.functional.normalize(features, p=2, dim=1)
         features = features.cpu().numpy()
         
         d = features.shape[1]
