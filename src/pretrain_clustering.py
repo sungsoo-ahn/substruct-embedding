@@ -11,12 +11,14 @@ from data.dataset import MoleculeDataset
 from data.splitter import random_split
 from data.transform import compose, drop_nodes, mask_nodes
 from scheme.graph_clustering import GraphClusteringScheme
+from scheme.euclidean_graph_clustering import EuclideanGraphClusteringScheme
+from scheme.vanilla_graph_clustering import VanillaGraphClusteringScheme
+from scheme.sharpening_graph_clustering import SharpeningGraphClusteringScheme
 from evaluate_knn import get_eval_datasets, evaluate_knn
 
 import neptune.new as neptune
 
 from tqdm import tqdm
-
 
 def main():
     parser = argparse.ArgumentParser()
@@ -55,14 +57,42 @@ def main():
         torch.cuda.manual_seed_all(0)
 
     if args.scheme == "graph_clustering":
-        data_transform = lambda x, edge_index, edg_attr: mask_nodes(
-            x, edge_index, edg_attr, aug_severity=args.aug_severity
+        data_transform = lambda x, edge_index, edge_attr: mask_nodes(
+            x, edge_index, edge_attr, aug_severity=args.aug_severity
         )
         scheme = GraphClusteringScheme(
             num_clusters=args.num_clusters, 
             transform=data_transform, 
             temperature=args.temperature
             )
+    elif args.scheme == "euclidean_graph_clustering":
+        data_transform = lambda x, edge_index, edge_attr: mask_nodes(
+            x, edge_index, edge_attr, aug_severity=args.aug_severity
+        )
+        scheme = EuclideanGraphClusteringScheme(
+            num_clusters=args.num_clusters, 
+            transform=data_transform, 
+            temperature=args.temperature
+            )
+    elif args.scheme == "vanilla_graph_clustering":
+        data_transform = lambda x, edge_index, edge_attr: mask_nodes(
+            x, edge_index, edge_attr, aug_severity=args.aug_severity
+        )
+        scheme = VanillaGraphClusteringScheme(
+            num_clusters=args.num_clusters, 
+            transform=data_transform, 
+            temperature=args.temperature
+            )
+    elif args.scheme == "sharpening_graph_clustering":
+        data_transform = lambda x, edge_index, edge_attr: mask_nodes(
+            x, edge_index, edge_attr, aug_severity=args.aug_severity
+        )
+        scheme = SharpeningGraphClusteringScheme(
+            num_clusters=args.num_clusters, 
+            transform=data_transform, 
+            temperature=args.temperature
+            )
+        
     
     print("Loading model...")
     models = scheme.get_models(
@@ -90,7 +120,7 @@ def main():
     cluster_loader = torch_geometric.data.DataLoader(
         cluster_dataset,
         batch_size=args.cluster_batch_size,
-        shuffle=True,
+        shuffle=False,
         num_workers=args.num_workers,
     )
     
@@ -143,7 +173,7 @@ def main():
                 )
             for key, val in eval_statistics.items():
                 run[f"eval/{name}/{key}"].log(val)
-
+        
             eval_acc += eval_statistics["acc"] / len(eval_datasets)
             
         run[f"eval/total/acc"].log(eval_acc)

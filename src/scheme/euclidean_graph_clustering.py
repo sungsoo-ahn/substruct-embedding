@@ -7,7 +7,7 @@ import faiss
 from model import GraphEncoder
 from util import compute_accuracy
 
-class GraphClusteringScheme:
+class EuclideanGraphClusteringScheme:
     criterion = torch.nn.CrossEntropyLoss()
 
     def __init__(self, num_clusters, transform, temperature):
@@ -98,10 +98,8 @@ class GraphClusteringScheme:
                     batch.x, batch.edge_index, batch.edge_attr, batch.batch
                 )
                 features[batch.dataset_idx] = models["head"](out)
-            
-            features = torch.nn.functional.normalize(features, p=2, dim=1)
                 
-        features = features.cpu().numpy()
+        features = features.cpu().numpy()        
         
         d = features.shape[1]
         clus = faiss.Clustering(d, self.num_clusters)
@@ -127,40 +125,14 @@ class GraphClusteringScheme:
         # get cluster centroids
         centroids = faiss.vector_to_array(clus.centroids).reshape(self.num_clusters, d)
 
-        # sample-to-centroid distances for each cluster
-        Dcluster = [[] for c in range(self.num_clusters)]
-        for im, i in enumerate(g2cluster):
-            Dcluster[i].append(D[im][0])
-
-        # concentration estimation (phi)
-        density = np.zeros(self.num_clusters)
-        for i, dist in enumerate(Dcluster):
-            if len(dist) > 1:
-                d = (np.asarray(dist) ** 0.5).mean() / np.log(len(dist) + 10)
-                density[i] = d
-
-        # if cluster only has one point, use the max to estimate its concentration
-        dmax = density.max()
-        for i, dist in enumerate(Dcluster):
-            if len(dist) <= 1:
-                density[i] = dmax
-
-        # clamp extreme values for stability
-        density = density.clip(np.percentile(density, 10), np.percentile(density, 90))
-
-        # scale the mean to temperature
-        density = self.cluster_temperature * density / density.mean()
-
         # convert to cuda Tensors for broadcast
-        centroids = torch.Tensor(centroids).to(device)
-        self.centroids = torch.nn.functional.normalize(centroids, p=2, dim=1)
-
+        self.centroids =  torch.Tensor(centroids).to(device)        
         self.g2cluster = torch.LongTensor(g2cluster).to(device)
-        self.density = torch.Tensor(density).to(device)
         
         obj = clus.iteration_stats.at(clus.iteration_stats.size()-1).obj
         bincount = torch.bincount(self.g2cluster)
         statistics = {"obj": obj, "bincount": bincount}
+        
         return statistics
         
     def train_step(self, batch, models, optim, device):
@@ -168,23 +140,21 @@ class GraphClusteringScheme:
         batch = batch.to(device)
 
         out = models["encoder"](batch.x, batch.edge_index, batch.edge_attr, batch.batch)
-        out = models["head"](out)
-        features = torch.nn.functional.normalize(out, p=2, dim=1)
-
+        features = models["head"](out)
+        
         logits, labels = self.get_logits_and_labels(features, device)
         loss = loss_contrastive = self.criterion(logits, labels)
         acc_contrastive = compute_accuracy(logits, labels)
 
         if self.centroids is not None:
             proto_logits, proto_labels = self.get_proto_logits_and_labels(
-                batch.dataset_idx.chunk(2, dim=0)[0], 
-                features.chunk(2, dim=0)[0], 
+                batch.dataset_idx, 
+                features,
                 device
                 )
             loss_proto = self.criterion(proto_logits, proto_labels)
-            acc_proto = compute_accuracy(proto_logits, proto_labels)
-                
-            loss += loss_proto   
+            acc_proto = compute_accuracy(proto_logits, proto_labels) 
+            loss += loss_proto
 
         optim.zero_grad()
         loss.backward()
@@ -195,17 +165,18 @@ class GraphClusteringScheme:
             "loss_contrastive": loss_contrastive.detach(), 
             "acc_contrastive": acc_contrastive,
             }
+
         if self.centroids is not None:
             statistics.update({
                 "loss_proto": loss_proto.detach(),
                 "acc_proto": acc_proto,
             })
-
+        
         return statistics
 
     def get_logits_and_labels(self, features, device):
-        similarity_matrix = torch.matmul(features, features.T)
-
+        similarity_matrix = -torch.cdist(features, features)
+        
         batch_size = similarity_matrix.size(0) // 2
 
         labels = torch.cat([torch.arange(batch_size) for i in range(2)], dim=0)
@@ -227,32 +198,7 @@ class GraphClusteringScheme:
         return logits, labels
 
     def get_proto_logits_and_labels(self, dataset_idx, features, device):
-        # get positive prototypes
-        pos_proto_id = self.g2cluster[dataset_idx]
-        pos_prototypes = self.centroids[pos_proto_id]    
-        
-        # sample negative prototypes
-        all_proto_id = list(range(self.num_clusters))       
-        neg_proto_id = list(set(all_proto_id)-set(pos_proto_id.tolist()))
-        if self.num_neg_protos < len(neg_proto_id):
-            neg_proto_id = random.sample(neg_proto_id, self.num_neg_protos)
-        
-        neg_proto_id = torch.LongTensor(neg_proto_id).to(device)
-        
-        neg_prototypes = self.centroids[neg_proto_id]    
-
-        proto_selected = torch.cat([pos_prototypes,neg_prototypes],dim=0)
-        
-        # compute prototypical logits
-        logits_proto = torch.mm(features, proto_selected.T)
-        
-        # targets for prototype assignment
-        labels_proto = torch.arange(features.size(0), dtype=torch.long).to(device)
-        
-        # scaling temperatures for the selected prototypes
-        temp_proto = self.density[
-            torch.cat([pos_proto_id, neg_proto_id.to(device)], dim=0)
-            ]
-        logits_proto /= temp_proto
-        
+        logits_proto = -torch.cdist(features, self.centroids, p=2) ** 2
+        labels_proto = self.g2cluster[dataset_idx]
+                
         return logits_proto, labels_proto
