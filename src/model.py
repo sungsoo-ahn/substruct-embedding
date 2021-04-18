@@ -58,6 +58,7 @@ class NodeEncoder(nn.Module):
     def __init__(self, num_layers, emb_dim, drop_rate):
         super(NodeEncoder, self).__init__()
         self.num_layers = num_layers
+        self.emb_dim = emb_dim
 
         self.x_embedding1 = nn.Embedding(NUM_ATOM_TYPES, emb_dim)
         self.x_embedding2 = nn.Embedding(NUM_CHIRALITY_TAGS, emb_dim)

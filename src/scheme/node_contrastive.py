@@ -89,20 +89,20 @@ class NodeContrastiveScheme:
         out = torch.nn.functional.normalize(out, dim=1)
 
         out0, out1 = torch.chunk(out, 2, dim=0)
-        out0 = torch.split(out0, batch.batch_num_nodes.tolist()[:batch.batch_size // 2])
-        out1 = torch.split(out1, batch.batch_num_nodes.tolist()[:batch.batch_size // 2])
+        out0 = torch.split(out0, batch.batch_num_nodes.tolist()[: batch.batch_size // 2])
+        out1 = torch.split(out1, batch.batch_num_nodes.tolist()[: batch.batch_size // 2])
 
         loss = 0.0
-        acc = 0.0        
-        for idx in range(batch.batch_size // 2):            
+        acc = 0.0
+        for idx in range(batch.batch_size // 2):
             logits = torch.matmul(out0[idx], out1[idx].T) / self.temperature
             labels = torch.arange(out0[idx].size(0)).to(device)
             loss_ = self.criterion(logits, labels)
             acc_ = compute_accuracy(logits, labels)
-            
+
             loss += loss_ / (batch.batch_size // 2)
             acc += acc_ / (batch.batch_size // 2)
-                            
+
         optim.zero_grad()
         loss.backward()
         optim.step()

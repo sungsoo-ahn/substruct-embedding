@@ -12,7 +12,7 @@ def log_sinkhorn_iterations(Z, log_mu, log_nu, batch, batch_num_nodes, num_iters
     u, v = torch.zeros_like(log_mu), torch.zeros_like(log_nu)
     for _ in range(num_iters):
         tmp = Z + torch.repeat_interleave(v, batch_num_nodes, dim=0)
-        tmp = global_add_pool(tmp.T.exp(), batch).log().T        
+        tmp = global_add_pool(tmp.T.exp(), batch).log().T
         u = log_mu - tmp
 
         tmp = Z + torch.repeat_interleave(u, batch_num_nodes, dim=1)

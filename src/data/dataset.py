@@ -53,6 +53,19 @@ class MoleculeDataset(InMemoryDataset):
                 ).values.tolist()
             )
         )[0]
+        
+        self.num_tasks = {
+            "tox21": 12,
+            "hiv": 1,
+            "pcba": 128,
+            "muv": 17,
+            "bace": 1,
+            "bbbp": 1,
+            "toxcast": 617,
+            "sider": 27,
+            "clintox": 2,
+        }.get(dataset, 0)
+            
 
     def get(self, idx):
         data = Data()
@@ -61,7 +74,9 @@ class MoleculeDataset(InMemoryDataset):
             s = list(repeat(slice(None), item.dim()))
             s[data.__cat_dim__(key, item)] = slice(slices[idx], slices[idx + 1])
             data[key] = item[s]
-
+        
+        data.dataset_idx = torch.LongTensor([idx])
+            
         return data
 
     @property
