@@ -16,20 +16,14 @@ from data.dataset import MoleculeDataset
 from data.splitter import scaffold_split
 from torch_geometric.nn import global_mean_pool
 
-def compute_all_features(models, loader, device):
+def compute_all_features(featurizer, loader, device):
     features = []
     labels = []
     num_tasks = loader.dataset.num_tasks
     with torch.no_grad():
         for batch in loader:
-            batch = batch.to(device)
-            
-            out = models["encoder"](batch.x, batch.edge_index, batch.edge_attr)
-            if "projector" in models:
-                out = models["projector"](out)
-            
-            features_ = global_mean_pool(out, batch.batch)
-            features_ = torch.nn.functional.normalize(features_, dim=1)
+            batch = batch.to(device)            
+            features_ = featurizer(batch.x, batch.edge_index, batch.edge_attr, batch.batch)
             features.append(features_.cpu().numpy())
             labels.append(batch.y.reshape(-1, num_tasks).cpu().numpy())
 
