@@ -75,6 +75,9 @@ class GraphClusteringScheme:
         node_mask = torch.zeros(num_nodes, dtype=torch.bool)
         node_mask[mask_nodes] = True
         
+        data = Data(
+            x=data.x.clone(), edge_index=data.edge_index.clone(), edge_attr=data.edge_attr.clone()
+            )
         data.y = data.x[:, 0].clone()
         data.x[mask_nodes] = 0
         data.node_mask = node_mask
@@ -179,6 +182,8 @@ class GraphClusteringScheme:
 
         out = models["encoder"](batch.x, batch.edge_index, batch.edge_attr)
         features_node = models["projector"](out)
+        features_node = torch.nn.functional.normalize(features_node, p=2, dim=1)
+
         features_graph = global_mean_pool(features_node, batch.batch)
         features_graph = torch.nn.functional.normalize(features_graph, p=2, dim=1)
         
@@ -188,7 +193,6 @@ class GraphClusteringScheme:
         loss = loss_node = self.criterion(logits_node, labels_node)
         acc_node = compute_accuracy(logits_node, labels_node)
 
-        
         if self.centroids is not None:
             logits_proto = torch.mm(features_graph, self.centroids.T)
             if self.use_density_rescaling:
