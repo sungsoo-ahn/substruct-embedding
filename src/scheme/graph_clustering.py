@@ -6,7 +6,18 @@ from torch_geometric.nn import global_mean_pool
 import faiss
 
 from model import NodeEncoder
-from util import compute_accuracy
+from scheme.util import compute_accuracy, get_contrastive_logits_and_labels
+
+
+def mask_nodes(x, edge_index, edge_attr, mask_rate):
+    num_nodes = x.size(0)
+    num_mask_nodes = min(int(mask_rate * num_nodes), 1)
+    mask_nodes = list(sorted(random.sample(range(num_nodes), num_mask_nodes)))
+
+    x = x.clone()
+    x[mask_nodes] = 0
+
+    return x, edge_index, edge_attr
 
 
 class GraphClusteringScheme:
@@ -17,9 +28,11 @@ class GraphClusteringScheme:
         self.use_density_rescaling = use_density_rescaling
         self.use_euclidean_clustering = use_euclidean_clustering
 
-        self.temperature = 0.2
+        self.proto_temperature = 0.2
+        self.contrastive_temperature = 0.04
         self.mask_rate = 0.3
 
+        
         self.clus_verbose = True
         self.clus_niter = 20
         self.clus_nredo = 1
@@ -30,9 +43,13 @@ class GraphClusteringScheme:
         self.centroids = None
         self.node2cluster = None
         self.density = None
-                
+
     @staticmethod
     def collate_fn(data_list):
+        data_list = [elem for elem in data_list if elem is not None]
+        data_list = list(zip(*data_list))
+        data_list = [data for inner_data_list in data_list for data in inner_data_list]
+
         keys = [set(data.keys) for data in data_list]
         keys = list(set.union(*keys))
 
@@ -68,33 +85,42 @@ class GraphClusteringScheme:
         return batch.contiguous()
 
     def transform(self, data):
-        num_nodes = data.x.size(0)
-        num_mask_nodes = min(int(self.mask_rate * num_nodes), 1)
-        mask_nodes = list(sorted(random.sample(range(num_nodes), num_mask_nodes)))
-        
-        node_mask = torch.zeros(num_nodes, dtype=torch.bool)
-        node_mask[mask_nodes] = True
-        
-        data = Data(
-            x=data.x.clone(), edge_index=data.edge_index.clone(), edge_attr=data.edge_attr.clone(),
-            dataset_graph_idx = data.dataset_graph_idx.clone(),
-            dataset_node_idx = data.dataset_node_idx.clone(),
-            )
-        data.y = data.x[:, 0].clone()
-        data.x[mask_nodes] = 0
-        data.node_mask = node_mask
-        
-        return data
+        x, edge_index, edge_attr = mask_nodes(
+            data.x.clone(), data.edge_index.clone(), data.edge_attr.clone(), mask_rate=0.3
+        )
+        if x.size(0) == 0:
+            return None
+
+        data0 = Data(
+            x=x,
+            edge_index=edge_index,
+            edge_attr=edge_attr,
+            dataset_graph_idx=data.dataset_graph_idx,
+            dataset_node_idx=data.dataset_node_idx,
+        )
+
+        x, edge_index, edge_attr = mask_nodes(
+            data.x.clone(), data.edge_index.clone(), data.edge_attr.clone(), mask_rate=0.3
+        )
+        if x.size(0) == 0:
+            return None
+
+        data1 = Data(
+            x=x,
+            edge_index=edge_index,
+            edge_attr=edge_attr,
+            dataset_graph_idx=data.dataset_graph_idx,
+            dataset_node_idx=data.dataset_node_idx,
+        )
+
+        return data0, data1
 
     def get_models(self, num_layers, emb_dim, drop_rate):
         encoder = NodeEncoder(num_layers, emb_dim, drop_rate)
         projector = torch.nn.Linear(emb_dim, 100)
-        atom_classifier = torch.nn.Linear(100, 120)
-        models = torch.nn.ModuleDict({
-            "encoder": encoder, 
-            "projector": projector,
-            "atom_classifier": atom_classifier
-            })
+        models = torch.nn.ModuleDict(
+            {"encoder": encoder, "projector": projector}
+        )
         return models
 
     def assign_cluster(self, loader, models, device):
@@ -107,16 +133,16 @@ class GraphClusteringScheme:
                 out = models["encoder"](batch.x, batch.edge_index, batch.edge_attr)
                 out = models["projector"](out)
                 out = global_mean_pool(out, batch.batch)
-                
+
                 if features is None:
                     features = torch.zeros(len(loader.dataset), out.size(1)).to(device)
-                
+
                 features[batch.dataset_graph_idx] = out
-            
+
             features = torch.nn.functional.normalize(features, p=2, dim=1)
-                
+
         features = features.cpu().numpy()
-        
+
         d = features.shape[1]
         clus = faiss.Clustering(d, self.num_clusters)
         clus.verbose = self.clus_verbose
@@ -125,7 +151,7 @@ class GraphClusteringScheme:
         clus.seed = self.clus_seed
         clus.max_points_per_centroid = self.clus_max_points_per_centroid
         clus.min_points_per_centroid = self.clus_min_points_per_centroid
-        clus.spherical = (not self.use_euclidean_clustering)
+        clus.spherical = not self.use_euclidean_clustering
 
         res = faiss.StandardGpuResources()
         cfg = faiss.GpuIndexFlatConfig()
@@ -164,7 +190,7 @@ class GraphClusteringScheme:
         density = density.clip(np.percentile(density, 10), np.percentile(density, 90))
 
         # scale the mean to temperature
-        density = self.temperature * density / density.mean()
+        density = density / density.mean()
 
         # convert to cuda Tensors for broadcast
         centroids = torch.Tensor(centroids).to(device)
@@ -172,34 +198,36 @@ class GraphClusteringScheme:
 
         self.graph2cluster = torch.LongTensor(g2cluster).to(device)
         self.density = torch.Tensor(density).to(device)
-        
-        obj = clus.iteration_stats.at(clus.iteration_stats.size()-1).obj
+
+        obj = clus.iteration_stats.at(clus.iteration_stats.size() - 1).obj
         bincount = torch.bincount(self.graph2cluster)
         statistics = {"obj": obj, "bincount": bincount}
         return statistics
-        
+
     def train_step(self, batch, models, optim, device):
         models.train()
         batch = batch.to(device)
 
         out = models["encoder"](batch.x, batch.edge_index, batch.edge_attr)
         features_node = models["projector"](out)
-        features_node = torch.nn.functional.normalize(features_node, p=2, dim=1)
-
         features_graph = global_mean_pool(features_node, batch.batch)
         features_graph = torch.nn.functional.normalize(features_graph, p=2, dim=1)
+
+        logits_contrastive, labels_contrastive = get_contrastive_logits_and_labels(
+            features_graph, device
+            )
+        logits_contrastive /= self.contrastive_temperature
         
-        logits_node = models["atom_classifier"](features_node[batch.node_mask])
-        labels_node = batch.y[batch.node_mask]
-        
-        loss = loss_node = self.criterion(logits_node, labels_node)
-        acc_node = compute_accuracy(logits_node, labels_node)
+        loss = loss_contrastive = self.criterion(logits_contrastive, labels_contrastive)
+        acc_contrastive = compute_accuracy(logits_contrastive, labels_contrastive)
 
         if self.centroids is not None:
             logits_proto = torch.mm(features_graph, self.centroids.T)
+            logits_proto /= self.proto_temperature
+            
             if self.use_density_rescaling:
                 logits_proto /= self.density.unsqueeze(0)
-                            
+
             labels_proto = self.graph2cluster[batch.dataset_graph_idx]
             loss_proto = self.criterion(logits_proto, labels_proto)
             acc_proto = compute_accuracy(logits_proto, labels_proto)
@@ -211,13 +239,12 @@ class GraphClusteringScheme:
 
         statistics = {
             "loss": loss,
-            "loss_node": loss_node.detach(), 
-            "acc_node": acc_node,
-            }
+            "loss_contrastive": loss_contrastive.detach(),
+            "acc_contrastive": acc_contrastive,
+        }
         if self.centroids is not None:
-            statistics.update({
-                "loss_proto": loss_proto.detach(),
-                "acc_proto": acc_proto,
-            })
+            statistics.update(
+                {"loss_proto": loss_proto.detach(), "acc_proto": acc_proto,}
+            )
 
         return statistics
