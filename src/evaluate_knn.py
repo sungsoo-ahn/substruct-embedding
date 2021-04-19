@@ -35,9 +35,8 @@ def compute_all_features(featurizer, loader, device):
     return features, labels, is_valid
 
 
-def evaluate_knn(models, train_dataset, test_dataset, device):
-    models.eval()
-    
+def evaluate_knn(featurizer, train_dataset, test_dataset, device):
+   
     train_loader = DataLoader(
         train_dataset, batch_size=1024, shuffle=False, num_workers=8
     )
@@ -45,8 +44,8 @@ def evaluate_knn(models, train_dataset, test_dataset, device):
         test_dataset, batch_size=1024, shuffle=False, num_workers=8
     )
 
-    train_features, train_labels, train_is_valid = compute_all_features(models, train_loader, device)
-    test_features, test_labels, test_is_valid = compute_all_features(models, test_loader, device)
+    train_features, train_labels, train_is_valid = compute_all_features(featurizer, train_loader, device)
+    test_features, test_labels, test_is_valid = compute_all_features(featurizer, test_loader, device)
 
     roc_list = []
     for idx in range(train_loader.dataset.num_tasks):

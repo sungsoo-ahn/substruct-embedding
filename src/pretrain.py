@@ -96,7 +96,7 @@ def main():
         num_workers=args.num_workers,
     )
         
-    #eval_datasets = get_eval_datasets()
+    eval_datasets = get_eval_datasets()
 
     print("Loading neptune...")
     run = neptune.init(
@@ -126,6 +126,7 @@ def main():
                 for key, val in cluster_statistics.items():
                     run[f"cluster/{key}"].log(val)
     
+        model.eval()
         eval_acc = 0.0
         for name in eval_datasets:
             eval_statistics = evaluate_knn(
