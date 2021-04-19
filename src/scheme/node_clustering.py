@@ -6,7 +6,7 @@ from torch_geometric.nn import global_mean_pool
 import faiss
 
 from model import NodeEncoder
-from util import compute_accuracy
+from scheme.util import compute_accuracy
 from tqdm import tqdm
 
 
