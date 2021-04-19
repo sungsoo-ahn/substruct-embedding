@@ -1,7 +1,7 @@
 #!/bin/bash
 
 NEPTUNE_MODE=$1
-RUN_TAG="euclidean_graph_clustering"
+RUN_TAG="graph_clustering_abl1"
 MODEL_PATH="../resource/result/${RUN_TAG}/model.pt"
 
 echo $NEPTUNE_MODE
@@ -10,8 +10,9 @@ echo $MODEL_PATH
 
 python pretrain_clustering.py \
 --neptune_mode $NEPTUNE_MODE \
---scheme euclidean_graph_clustering \
+--scheme graph_clustering \
 --num_epochs 20 \
+--use_density_rescaling \
 --run_tag $RUN_TAG
 
 for DATASET in "tox21" "bace" "bbbp" "toxcast" "sider" "clintox" "hiv"
