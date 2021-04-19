@@ -76,7 +76,9 @@ class GraphClusteringScheme:
         node_mask[mask_nodes] = True
         
         data = Data(
-            x=data.x.clone(), edge_index=data.edge_index.clone(), edge_attr=data.edge_attr.clone()
+            x=data.x.clone(), edge_index=data.edge_index.clone(), edge_attr=data.edge_attr.clone(),
+            dataset_graph_idx = data.dataset_graph_idx.clone(),
+            dataset_node_idx = data.dataset_node_idx.clone(),
             )
         data.y = data.x[:, 0].clone()
         data.x[mask_nodes] = 0
