@@ -23,8 +23,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", type=str, default="zinc_standard_agent")
     parser.add_argument("--num_epochs", type=int, default=20)
-    parser.add_argument("--num_warmup_steps", type=int, default=1000)
-    parser.add_argument("--cluster_freq", type=int, default=1000)
+    parser.add_argument("--num_warmup_epochs", type=int, default=1)
     parser.add_argument("--log_freq", type=float, default=100)
 
     parser.add_argument("--scheme", type=str, default="graph_clustering")
@@ -124,6 +123,11 @@ def main():
     for epoch in range(args.num_epochs):
         run[f"epoch"].log(epoch)            
         
+        if epoch > args.num_warmup_epochs:
+            cluster_statistics = scheme.assign_cluster(cluster_loader, model, device)
+            for key, val in cluster_statistics.items():
+                run[f"cluster/{key}"].log(val)
+    
         for batch in loader:
             step += 1
             train_statistics = scheme.train_step(batch, model, optim, device)
@@ -132,11 +136,7 @@ def main():
                 for key, val in train_statistics.items():
                     run[f"train/{key}"].log(val)
             
-            if step > args.num_warmup_steps and step % args.cluster_freq == 0:
-                cluster_statistics = scheme.assign_cluster(cluster_loader, model, device)
-                for key, val in cluster_statistics.items():
-                    run[f"cluster/{key}"].log(val)
-    
+            
         model.eval()
         eval_acc = 0.0
         for name in eval_datasets:
