@@ -1,7 +1,7 @@
 #!/bin/bash
 
 NEPTUNE_MODE=$1
-RUN_TAG="graph_clustering0"
+RUN_TAG="graph_clustering4"
 MODEL_PATH="../resource/result/${RUN_TAG}/model.pt"
 
 echo $NEPTUNE_MODE
@@ -11,6 +11,7 @@ echo $MODEL_PATH
 python pretrain.py \
 --neptune_mode $NEPTUNE_MODE \
 --scheme graph_clustering \
+--use_euclidean_clustering \
 --num_epochs 10 \
 --run_tag $RUN_TAG
 
