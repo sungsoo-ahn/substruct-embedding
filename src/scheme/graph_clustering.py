@@ -7,15 +7,15 @@ from model import NodeEncoder
 from scheme.util import compute_accuracy, get_contrastive_logits_and_labels, run_clustering
 
 class GraphClusteringModel(torch.nn.Module):
-    def __init__(self, use_density_rescaling):
+    def __init__(self, use_density_rescaling, proto_temperature, ema_rate):
         super(GraphClusteringModel, self).__init__()
         self.num_layers = 5
         self.emb_dim = 300
         self.proj_dim = 100
         self.drop_rate = 0.0
-        self.proto_temperature = 0.2
+        self.proto_temperature = proto_temperature
         self.contrastive_temperature = 0.04
-        self.ema_rate = 0.995                
+        self.ema_rate = ema_rate
         self.criterion = torch.nn.CrossEntropyLoss()
         self.use_density_rescaling = use_density_rescaling
 
@@ -150,6 +150,9 @@ class GraphClusteringScheme:
         loss_cum = 0.0
         statistics = dict()
         for key in logits_and_labels:
+            if "graph_proto" in logits_and_labels and key != "graph_proto":
+                continue
+            
             logits, labels = logits_and_labels[key]
             loss = model.criterion(logits, labels)
             acc = compute_accuracy(logits, labels)

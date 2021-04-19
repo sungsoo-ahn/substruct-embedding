@@ -43,8 +43,11 @@ def main():
     parser.add_argument("--num_clusters", type=int, default=50000)
     parser.add_argument("--use_density_rescaling", action="store_true")
     parser.add_argument("--use_euclidean_clustering", action="store_true")
+    parser.add_argument("--proto_temperature", type=float, default=0.00001)
+    parser.add_argument("--ema_rate", type=float, default=0.0)
+    
     parser.add_argument("--neptune_mode", type=str, default="async")
-
+    
     args = parser.parse_args()
 
     torch.manual_seed(0)
@@ -56,9 +59,13 @@ def main():
     if args.scheme == "graph_clustering":
         scheme = GraphClusteringScheme(
             num_clusters=args.num_clusters, 
-            use_euclidean_clustering=args.use_euclidean_clustering
+            use_euclidean_clustering=args.use_euclidean_clustering,
             )
-        model = GraphClusteringModel(use_density_rescaling=args.use_density_rescaling)
+        model = GraphClusteringModel(
+            use_density_rescaling=args.use_density_rescaling,             
+            proto_temperature=args.proto_temperature,
+            ema_rate=args.ema_rate,
+            )
         transform = mask_data_twice
         collate_fn = contrastive_collate
 
@@ -122,7 +129,7 @@ def main():
     for epoch in range(args.num_epochs):
         run[f"epoch"].log(epoch)            
         
-        if epoch > args.num_warmup_epochs:
+        if (epoch + 1) > args.num_warmup_epochs:
             cluster_statistics = scheme.assign_cluster(cluster_loader, model, device)
             for key, val in cluster_statistics.items():
                 run[f"cluster/{key}"].log(val)
