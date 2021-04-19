@@ -71,14 +71,14 @@ def main():
 
     elif args.scheme == "node_clustering":
         scheme = NodeClusteringScheme(
-            num_clusters=args.num_clusters, 
+            num_clusters=args.num_clusters,
             use_euclidean_clustering=args.use_euclidean_clustering
             )
         model = NodeClusteringModel(use_density_rescaling=args.use_density_rescaling)
         transform = mask_data_twice
         collate_fn = contrastive_collate
 
-    
+
     print("Loading model...")
     model = model.to(device)
     optim = torch.optim.Adam(
@@ -87,11 +87,11 @@ def main():
 
     print("Loading dataset...")
     dataset = MoleculeDataset(
-        "../resource/dataset/" + args.dataset, 
-        dataset=args.dataset, 
+        "../resource/dataset/" + args.dataset,
+        dataset=args.dataset,
         transform=transform,
     )
-    
+
     loader = torch.utils.data.DataLoader(
         dataset,
         batch_size=args.batch_size,
@@ -102,18 +102,18 @@ def main():
 
     print("Loading cluster dataset...")
     cluster_dataset = MoleculeDataset(
-        "../resource/dataset/" + args.dataset, 
+        "../resource/dataset/" + args.dataset,
         dataset=args.dataset,
         )
-        
+
     cluster_loader = torch_geometric.data.DataLoader(
         cluster_dataset,
         batch_size=args.cluster_batch_size,
         shuffle=True,
         num_workers=args.num_workers,
     )
-        
-    
+
+
     print("Loading neptune...")
     run = neptune.init(
         project="sungsahn0215/substruct-embedding", name="train_embedding", mode=args.neptune_mode
@@ -127,22 +127,28 @@ def main():
 
     step = 0
     for epoch in range(args.num_epochs):
+<<<<<<< HEAD
         run[f"epoch"].log(epoch)            
         
         if (epoch + 1) > args.num_warmup_epochs:
+=======
+        run[f"epoch"].log(epoch)
+
+        if epoch + 1> args.num_warmup_epochs:
+>>>>>>> 6ed7d59b500c21896231e5d391c5508b61170b08
             cluster_statistics = scheme.assign_cluster(cluster_loader, model, device)
             for key, val in cluster_statistics.items():
                 run[f"cluster/{key}"].log(val)
-    
+
         for batch in loader:
             step += 1
             train_statistics = scheme.train_step(batch, model, optim, device)
-            
+
             if step % args.log_freq == 0:
                 for key, val in train_statistics.items():
                     run[f"train/{key}"].log(val)
-            
-            
+
+
         if epoch == 0:
             eval_datasets = get_eval_datasets()
 
@@ -157,11 +163,11 @@ def main():
                 )
             for key, val in eval_statistics.items():
                 run[f"eval/{name}/{key}"].log(val)
-        
+
             eval_acc += eval_statistics["acc"] / len(eval_datasets)
-            
+
         run[f"eval/total/acc"].log(eval_acc)
-        
+
         torch.save(
             model.encoder.state_dict(), f"../resource/result/{run_tag}/model_{epoch:02d}.pt"
         )
