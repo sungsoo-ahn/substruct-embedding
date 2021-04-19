@@ -9,11 +9,8 @@ import torch_geometric
 from model import NodeEncoder
 from data.dataset import MoleculeDataset
 from data.splitter import random_split
-from data.transform import compose, drop_nodes, mask_nodes
 from scheme.graph_clustering import GraphClusteringScheme
-from scheme.euclidean_graph_clustering import EuclideanGraphClusteringScheme
-from scheme.vanilla_graph_clustering import VanillaGraphClusteringScheme
-from scheme.vvanilla_graph_clustering import VVanillaGraphClusteringScheme
+from scheme.node_clustering import NodeClusteringScheme
 from evaluate_knn import get_eval_datasets, evaluate_knn
 
 import neptune.new as neptune
@@ -29,7 +26,7 @@ def main():
     parser.add_argument("--scheme", type=str, default="graph_clustering")
 
     parser.add_argument("--batch_size", type=int, default=256)
-    parser.add_argument("--cluster_batch_size", type=int, default=1024)
+    parser.add_argument("--cluster_batch_size", type=int, default=8192)
     parser.add_argument("--num_workers", type=int, default=0)
 
     parser.add_argument("--num_layers", type=int, default=5)
@@ -42,10 +39,9 @@ def main():
 
     parser.add_argument("--run_tag", type=str, default="")
 
-    parser.add_argument("--aug_severity", type=int, default=0)
-    parser.add_argument("--temperature", type=float, default=5e-2)
     parser.add_argument("--num_clusters", type=int, default=50000)
-    
+    parser.add_argument("--use_density_rescaling", action="store_true")
+    parser.add_argument("--use_euclidean_clustering", action="store_true")
     parser.add_argument("--neptune_mode", type=str, default="async")
 
     args = parser.parse_args()
@@ -57,40 +53,16 @@ def main():
         torch.cuda.manual_seed_all(0)
 
     if args.scheme == "graph_clustering":
-        data_transform = lambda x, edge_index, edge_attr: mask_nodes(
-            x, edge_index, edge_attr, aug_severity=args.aug_severity
-        )
         scheme = GraphClusteringScheme(
             num_clusters=args.num_clusters, 
-            transform=data_transform, 
-            temperature=args.temperature
+            use_density_rescaling=args.use_density_rescaling, 
+            use_euclidean_clustering=args.use_euclidean_clustering
             )
-    elif args.scheme == "euclidean_graph_clustering":
-        data_transform = lambda x, edge_index, edge_attr: mask_nodes(
-            x, edge_index, edge_attr, aug_severity=args.aug_severity
-        )
-        scheme = EuclideanGraphClusteringScheme(
+    elif args.scheme == "node_clustering":
+        scheme = NodeClusteringScheme(
             num_clusters=args.num_clusters, 
-            transform=data_transform, 
-            temperature=args.temperature
-            )
-    elif args.scheme == "vanilla_graph_clustering":
-        data_transform = lambda x, edge_index, edge_attr: mask_nodes(
-            x, edge_index, edge_attr, aug_severity=args.aug_severity
-        )
-        scheme = VanillaGraphClusteringScheme(
-            num_clusters=args.num_clusters, 
-            transform=data_transform, 
-            temperature=args.temperature
-            )
-    elif args.scheme == "vvanilla_graph_clustering":
-        data_transform = lambda x, edge_index, edge_attr: mask_nodes(
-            x, edge_index, edge_attr, aug_severity=args.aug_severity
-        )
-        scheme = VVanillaGraphClusteringScheme(
-            num_clusters=args.num_clusters, 
-            transform=data_transform, 
-            temperature=args.temperature
+            use_density_rescaling=args.use_density_rescaling, 
+            use_euclidean_clustering=args.use_euclidean_clustering
             )
     
     print("Loading model...")
@@ -102,9 +74,11 @@ def main():
 
     print("Loading dataset...")
     dataset = MoleculeDataset(
-        "../resource/dataset/" + args.dataset, dataset=args.dataset, transform=scheme.transform
+        "../resource/dataset/" + args.dataset, 
+        dataset=args.dataset, 
+        transform=scheme.transform,
     )
-    dataset = torch.utils.data.Subset(dataset, range(10000))
+    
     loader = torch.utils.data.DataLoader(
         dataset,
         batch_size=args.batch_size,
@@ -114,15 +88,18 @@ def main():
     )
 
     print("Loading cluster dataset...")
-    cluster_dataset = MoleculeDataset("../resource/dataset/" + args.dataset, dataset=args.dataset)
-    cluster_dataset = torch.utils.data.Subset(cluster_dataset, range(10000))
+    cluster_dataset = MoleculeDataset(
+        "../resource/dataset/" + args.dataset, 
+        dataset=args.dataset,
+        )
+        
     cluster_loader = torch_geometric.data.DataLoader(
         cluster_dataset,
         batch_size=args.cluster_batch_size,
-        shuffle=False,
+        shuffle=True,
         num_workers=args.num_workers,
     )
-    
+        
     eval_datasets = get_eval_datasets()
 
     print("Loading neptune...")
@@ -161,11 +138,11 @@ def main():
             if step % args.log_freq == 0:
                 for key, val in train_statistics.items():
                     run[f"train/{key}"].log(val)
-
+    
         eval_acc = 0.0
         for name in eval_datasets:
             eval_statistics = evaluate_knn(
-                models["encoder"],
+                models,
                 eval_datasets[name]["train"],
                 eval_datasets[name]["test"],
                 device

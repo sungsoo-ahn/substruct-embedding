@@ -35,7 +35,7 @@ class MoleculeDataset(InMemoryDataset):
         pre_transform=None,
         pre_filter=None,
         dataset="zinc250k",
-        empty=False,
+        empty=False
     ):
         self.dataset = dataset
         self.root = root
@@ -45,15 +45,16 @@ class MoleculeDataset(InMemoryDataset):
 
         if not empty:
             self.data, self.slices = torch.load(self.processed_paths[0])
+            self.smiles_list = list(
+                zip(
+                    *pd.read_csv(
+                        os.path.join(self.processed_dir, "smiles.csv"), header=None
+                    ).values.tolist()
+                )
+            )[0]
+            
+            self.num_nodes = self.data.x.size(0)
 
-        self.smiles_list = list(
-            zip(
-                *pd.read_csv(
-                    os.path.join(self.processed_dir, "smiles.csv"), header=None
-                ).values.tolist()
-            )
-        )[0]
-        
         self.num_tasks = {
             "tox21": 12,
             "hiv": 1,
@@ -65,7 +66,7 @@ class MoleculeDataset(InMemoryDataset):
             "sider": 27,
             "clintox": 2,
         }.get(dataset, 0)
-            
+        
 
     def get(self, idx):
         data = Data()
@@ -75,7 +76,10 @@ class MoleculeDataset(InMemoryDataset):
             s[data.__cat_dim__(key, item)] = slice(slices[idx], slices[idx + 1])
             data[key] = item[s]
         
-        data.dataset_idx = torch.LongTensor([idx])
+            if key == "x":
+                data.dataset_node_idx = torch.arange(slices[idx], slices[idx + 1])
+        
+        data.dataset_graph_idx = torch.LongTensor([idx])
             
         return data
 

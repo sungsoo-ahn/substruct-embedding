@@ -7,9 +7,10 @@ import faiss
 
 from model import NodeEncoder
 from util import compute_accuracy
+from tqdm import tqdm
 
 
-class GraphClusteringScheme:
+class NodeClusteringScheme:
     criterion = torch.nn.CrossEntropyLoss()
 
     def __init__(self, num_clusters, use_density_rescaling, use_euclidean_clustering):
@@ -24,13 +25,13 @@ class GraphClusteringScheme:
         self.clus_niter = 20
         self.clus_nredo = 1
         self.clus_seed = 0
-        self.clus_max_points_per_centroid = 1000
+        self.clus_max_points_per_centroid = 100
         self.clus_min_points_per_centroid = 10
 
         self.centroids = None
         self.node2cluster = None
         self.density = None
-                
+        
     @staticmethod
     def collate_fn(data_list):
         keys = [set(data.keys) for data in data_list]
@@ -93,7 +94,7 @@ class GraphClusteringScheme:
         return models
 
     def assign_cluster(self, loader, models, device):
-        print("Collecting graph features for clustering...")
+        print("Collecting node features for clustering...")
         models.eval()
         features = None
         with torch.no_grad():
@@ -101,16 +102,14 @@ class GraphClusteringScheme:
                 batch = batch.to(device)
                 out = models["encoder"](batch.x, batch.edge_index, batch.edge_attr)
                 out = models["projector"](out)
-                out = global_mean_pool(out, batch.batch)
-                
+                out = torch.nn.functional.normalize(out, p=2, dim=1)
                 if features is None:
-                    features = torch.zeros(len(loader.dataset), out.size(1)).to(device)
+                    features = torch.zeros(loader.dataset.num_nodes, out.size(1))
                 
-                features[batch.dataset_graph_idx] = out
+                features[batch.dataset_node_idx] = out.cpu()
+                break
             
-            features = torch.nn.functional.normalize(features, p=2, dim=1)
-                
-        features = features.cpu().numpy()
+        features = features.numpy()
         
         d = features.shape[1]
         clus = faiss.Clustering(d, self.num_clusters)
@@ -132,14 +131,14 @@ class GraphClusteringScheme:
 
         # for each sample, find cluster distance and assignments
         D, I = index.search(features, 1)
-        g2cluster = [int(n[0]) for n in I]
+        node2cluster = [int(n[0]) for n in I]
 
         # get cluster centroids
         centroids = faiss.vector_to_array(clus.centroids).reshape(self.num_clusters, d)
 
         # sample-to-centroid distances for each cluster
         Dcluster = [[] for c in range(self.num_clusters)]
-        for im, i in enumerate(g2cluster):
+        for im, i in enumerate(node2cluster):
             Dcluster[i].append(D[im][0])
 
         # concentration estimation (phi)
@@ -165,11 +164,11 @@ class GraphClusteringScheme:
         centroids = torch.Tensor(centroids).to(device)
         self.centroids = torch.nn.functional.normalize(centroids, p=2, dim=1)
 
-        self.graph2cluster = torch.LongTensor(g2cluster).to(device)
+        self.node2cluster = torch.LongTensor(node2cluster).to(device)
         self.density = torch.Tensor(density).to(device)
         
         obj = clus.iteration_stats.at(clus.iteration_stats.size()-1).obj
-        bincount = torch.bincount(self.graph2cluster)
+        bincount = torch.bincount(self.node2cluster)
         statistics = {"obj": obj, "bincount": bincount}
         return statistics
         
@@ -178,9 +177,8 @@ class GraphClusteringScheme:
         batch = batch.to(device)
 
         out = models["encoder"](batch.x, batch.edge_index, batch.edge_attr)
-        features_node = models["projector"](out)
-        features_graph = global_mean_pool(features_node, batch.batch)
-        features_graph = torch.nn.functional.normalize(features_graph, p=2, dim=1)
+        out = models["projector"](out)
+        features_node = torch.nn.functional.normalize(out, p=2, dim=1)
         
         logits_node = models["atom_classifier"](features_node[batch.node_mask])
         labels_node = batch.y[batch.node_mask]
@@ -188,13 +186,12 @@ class GraphClusteringScheme:
         loss = loss_node = self.criterion(logits_node, labels_node)
         acc_node = compute_accuracy(logits_node, labels_node)
 
-        
         if self.centroids is not None:
-            logits_proto = torch.mm(features_graph, self.centroids.T)
+            logits_proto = torch.mm(features_node, self.centroids.T)
             if self.use_density_rescaling:
-                logits_proto /= self.density[self.graph2cluster[batch.dataset_graph_idx]]
+                logits_proto /= self.density[self.node2cluster[batch.dataset_node_idx]]
                             
-            labels_proto = self.graph2cluster[batch.dataset_graph_idx]
+            labels_proto = self.node2cluster[batch.dataset_node_idx]
             loss_proto = self.criterion(logits_proto, labels_proto)
             acc_proto = compute_accuracy(logits_proto, labels_proto)
             loss += loss_proto

@@ -14,19 +14,21 @@ from sklearn.neighbors import KNeighborsClassifier
 from model import GraphEncoder
 from data.dataset import MoleculeDataset
 from data.splitter import scaffold_split
+from torch_geometric.nn import global_mean_pool
 
-
-criterion = nn.BCEWithLogitsLoss(reduction="none")
-
-
-def compute_all_features(model, loader, device):
+def compute_all_features(models, loader, device):
     features = []
     labels = []
     num_tasks = loader.dataset.num_tasks
     with torch.no_grad():
         for batch in loader:
             batch = batch.to(device)
-            features_ = model(batch.x, batch.edge_index, batch.edge_attr, batch.batch)
+            
+            out = models["encoder"](batch.x, batch.edge_index, batch.edge_attr)
+            if "projector" in models:
+                out = models["projector"](out)
+            
+            features_ = global_mean_pool(out, batch.batch)
             features_ = torch.nn.functional.normalize(features_, dim=1)
             features.append(features_.cpu().numpy())
             labels.append(batch.y.reshape(-1, num_tasks).cpu().numpy())
@@ -39,8 +41,8 @@ def compute_all_features(model, loader, device):
     return features, labels, is_valid
 
 
-def evaluate_knn(model, train_dataset, test_dataset, device):
-    model.eval()
+def evaluate_knn(models, train_dataset, test_dataset, device):
+    models.eval()
     
     train_loader = DataLoader(
         train_dataset, batch_size=1024, shuffle=False, num_workers=8
@@ -49,8 +51,8 @@ def evaluate_knn(model, train_dataset, test_dataset, device):
         test_dataset, batch_size=1024, shuffle=False, num_workers=8
     )
 
-    train_features, train_labels, train_is_valid = compute_all_features(model, train_loader, device)
-    test_features, test_labels, test_is_valid = compute_all_features(model, test_loader, device)
+    train_features, train_labels, train_is_valid = compute_all_features(models, train_loader, device)
+    test_features, test_labels, test_is_valid = compute_all_features(models, test_loader, device)
 
     roc_list = []
     for idx in range(train_loader.dataset.num_tasks):
