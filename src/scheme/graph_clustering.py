@@ -25,8 +25,16 @@ class GraphClusteringModel(torch.nn.Module):
             ema_param.data.copy_(param.data)
             ema_param.requires_grad = False
         
-        self.projector = torch.nn.Linear(self.emb_dim, self.proj_dim)
-        self.ema_projector = torch.nn.Linear(self.emb_dim, self.proj_dim)
+        self.projector = torch.nn.Sequential(
+            torch.nn.Linear(self.emb_dim, self.emb_dim),
+            torch.nn.ReLU(),
+            torch.nn.Linear(self.emb_dim, self.proj_dim),
+        )   
+        self.ema_projector = torch.nn.Sequential(
+            torch.nn.Linear(self.emb_dim, self.emb_dim),
+            torch.nn.ReLU(),
+            torch.nn.Linear(self.emb_dim, self.proj_dim),
+        )
         for param, ema_param in zip(self.projector.parameters(), self.ema_projector.parameters()):
             ema_param.data.copy_(param.data)
             ema_param.requires_grad = False
@@ -44,17 +52,16 @@ class GraphClusteringModel(torch.nn.Module):
 
     def compute_ema_features_graph(self, x, edge_index, edge_attr, batch):
         out = self.ema_encoder(x, edge_index, edge_attr)
-        out = self.ema_projector(out)
-        features_graph = global_mean_pool(out, batch)
+        out = global_mean_pool(out, batch)
+        features_graph = self.ema_projector(out)
         features_graph = torch.nn.functional.normalize(features_graph, p=2, dim=1)
         
         return features_graph
         
-        
     def compute_logits_and_labels(self, x, edge_index, edge_attr, batch, dataset_graph_idx):
         out = self.encoder(x, edge_index, edge_attr)
-        out = self.projector(out)
-        features_graph = global_mean_pool(out, batch)
+        out = global_mean_pool(out, batch)
+        features_graph = self.projector(out)
         features_graph = torch.nn.functional.normalize(features_graph, p=2, dim=1)
         
         _ = get_contrastive_logits_and_labels(features_graph)

@@ -106,8 +106,7 @@ def main():
         num_workers=args.num_workers,
     )
         
-    eval_datasets = get_eval_datasets()
-
+    
     print("Loading neptune...")
     run = neptune.init(
         project="sungsahn0215/substruct-embedding", name="train_embedding", mode=args.neptune_mode
@@ -137,6 +136,9 @@ def main():
                     run[f"train/{key}"].log(val)
             
             
+        if epoch == 0:
+            eval_datasets = get_eval_datasets()
+
         model.eval()
         eval_acc = 0.0
         for name in eval_datasets:

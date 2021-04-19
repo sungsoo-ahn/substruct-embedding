@@ -34,8 +34,6 @@ def mask_data(data):
     x, edge_index, edge_attr = mask_nodes(
         data.x.clone(), data.edge_index.clone(), data.edge_attr.clone(), mask_rate=0.3
     )
-    if x.size(0) == 0:
-        return None
 
     data = Data(
         x=x,
@@ -48,6 +46,12 @@ def mask_data(data):
     return data
 
 def mask_data_twice(data):
-    data0 = mask_data(data)
+    data0 = Data(
+        x=data.x.clone(),
+        edge_index=data.edge_index.clone(),
+        edge_attr=data.edge_attr.clone(),
+        dataset_graph_idx=data.dataset_graph_idx.clone(),
+        dataset_node_idx=data.dataset_node_idx.clone(),
+    )
     data1 = mask_data(data)
     return data0, data1
