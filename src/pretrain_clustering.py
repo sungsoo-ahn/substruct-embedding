@@ -11,6 +11,7 @@ from data.dataset import MoleculeDataset
 from data.splitter import random_split
 from scheme.graph_clustering import GraphClusteringScheme
 from scheme.node_clustering import NodeClusteringScheme
+from scheme.graph_clustering_noaug import GraphClusteringNoAugScheme
 from evaluate_knn import get_eval_datasets, evaluate_knn
 
 import neptune.new as neptune
@@ -58,6 +59,14 @@ def main():
             use_density_rescaling=args.use_density_rescaling, 
             use_euclidean_clustering=args.use_euclidean_clustering
             )
+    elif args.scheme == "graph_clustering_noaug":
+        scheme = GraphClusteringNoAugScheme(
+            num_clusters=args.num_clusters, 
+            use_density_rescaling=args.use_density_rescaling, 
+            use_euclidean_clustering=args.use_euclidean_clustering
+            )
+        args.num_warmup_epochs = 0
+        
     elif args.scheme == "node_clustering":
         scheme = NodeClusteringScheme(
             num_clusters=args.num_clusters, 
