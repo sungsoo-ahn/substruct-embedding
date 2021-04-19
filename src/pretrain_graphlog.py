@@ -606,12 +606,14 @@ def main():
             device
             )
         for key, val in eval_statistics.items():
-            run[f"epoch/eval/{name}/{key}"].log(val)
+            run[f"eval/{name}/{key}"].log(val)
     
         eval_acc += eval_statistics["acc"] / len(eval_datasets)
-    
+
+    run[f"eval/total/acc"].log(eval_acc)
+
     model.train()
-    proj.eval()
+    proj.train()
     
     # initialize prototypes and their state according to pretrained representations
     print("Initalize prototypes: layer 1")
@@ -659,10 +661,12 @@ def main():
                 device
                 )
             for key, val in eval_statistics.items():
-                run[f"epoch/eval/{name}/{key}"].log(val)
+                run[f"eval/{name}/{key}"].log(val)
         
             eval_acc += eval_statistics["acc"] / len(eval_datasets)
-        
+    
+        run[f"eval/total/acc"].log(eval_acc)
+
         model.train()
         proj.train()
 
