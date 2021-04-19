@@ -12,6 +12,7 @@ from data.splitter import random_split
 from data.transform import mask_data_twice
 from data.collate import contrastive_collate
 from scheme.graph_clustering import GraphClusteringScheme, GraphClusteringModel
+from scheme.node_clustering import NodeClusteringScheme, NodeClusteringModel
 from evaluate_knn import get_eval_datasets, evaluate_knn
 
 import neptune.new as neptune
@@ -61,6 +62,16 @@ def main():
         model = GraphClusteringModel(use_density_rescaling=args.use_density_rescaling)
         transform = mask_data_twice
         collate_fn = contrastive_collate
+
+    elif args.scheme == "node_clustering":
+        scheme = NodeClusteringScheme(
+            num_clusters=args.num_clusters, 
+            use_euclidean_clustering=args.use_euclidean_clustering
+            )
+        model = NodeClusteringModel(use_density_rescaling=args.use_density_rescaling)
+        transform = mask_data_twice
+        collate_fn = contrastive_collate
+
     
     print("Loading model...")
     model = model.to(device)
