@@ -11,7 +11,7 @@ echo $MODEL_PATH
 python pretrain_clustering.py \
 --neptune_mode $NEPTUNE_MODE \
 --scheme graph_clustering \
---num_epochs 20 \
+--num_epochs 10 \
 --use_euclidean_clustering \
 --run_tag $RUN_TAG
 

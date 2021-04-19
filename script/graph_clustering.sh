@@ -11,7 +11,7 @@ echo $MODEL_PATH
 python pretrain_clustering.py \
 --neptune_mode $NEPTUNE_MODE \
 --scheme graph_clustering \
---num_epochs 20 \
+--num_epochs 10 \
 --run_tag $RUN_TAG
 
 for DATASET in "tox21" "bace" "bbbp" "toxcast" "sider" "clintox" "hiv"

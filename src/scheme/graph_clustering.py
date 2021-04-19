@@ -66,10 +66,10 @@ class GraphClusteringModel(torch.nn.Module):
         }
         
         if self.graph_centroids is not None:
-            logits_graph_proto = torch.mm(features_graph, self.graph_centroids)
+            logits_graph_proto = torch.mm(features_graph, self.graph_centroids.T)
             logits_graph_proto /= self.proto_temperature
             if self.use_density_rescaling:
-                logits /= self.graph_density
+                logits_graph_proto /= self.graph_density.unsqueeze(0)
                 
             labels_graph_proto = self.graph2cluster[dataset_graph_idx]
             logits_and_labels["graph_proto"] = [logits_graph_proto, labels_graph_proto]
