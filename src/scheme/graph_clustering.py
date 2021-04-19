@@ -192,7 +192,7 @@ class GraphClusteringScheme:
         if self.centroids is not None:
             logits_proto = torch.mm(features_graph, self.centroids.T)
             if self.use_density_rescaling:
-                logits_proto /= self.density[self.graph2cluster[batch.dataset_graph_idx]]
+                logits_proto /= self.density.unsqueeze(0)
                             
             labels_proto = self.graph2cluster[batch.dataset_graph_idx]
             loss_proto = self.criterion(logits_proto, labels_proto)

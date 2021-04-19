@@ -186,10 +186,11 @@ class NodeClusteringScheme:
         loss = loss_node = self.criterion(logits_node, labels_node)
         acc_node = compute_accuracy(logits_node, labels_node)
 
+
         if self.centroids is not None:
-            logits_proto = torch.mm(features_node, self.centroids.T)
+            logits_proto = torch.mm(features_graph, self.centroids.T)
             if self.use_density_rescaling:
-                logits_proto /= self.density[self.node2cluster[batch.dataset_node_idx]]
+                logits_proto /= self.density.unsqueeze(0)
                             
             labels_proto = self.node2cluster[batch.dataset_node_idx]
             loss_proto = self.criterion(logits_proto, labels_proto)
