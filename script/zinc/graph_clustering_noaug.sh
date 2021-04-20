@@ -8,7 +8,7 @@ echo $RUN_TAG
 echo $MODEL_PATH
 
 python pretrain.py \
---scheme graph_clustering \
+--scheme graph_clustering_noaug \
 --run_tag $RUN_TAG
 
 for DATASET in "tox21" "bace" "bbbp" "toxcast" "sider" "clintox" "hiv"

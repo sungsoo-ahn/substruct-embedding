@@ -54,4 +54,5 @@ def mask_data_twice(data):
         dataset_node_idx=data.dataset_node_idx.clone(),
     )
     data1 = mask_data(data)
+    
     return data0, data1

@@ -42,7 +42,7 @@ def main():
 
     parser.add_argument("--run_tag", type=str, default="")
 
-    parser.add_argument("--num_clusters", type=int, default=50000)
+    parser.add_argument("--num_clusters", type=int, default=100000)
     parser.add_argument("--use_density_rescaling", action="store_true")
     parser.add_argument("--use_euclidean_clustering", action="store_true")
     parser.add_argument("--proto_temperature", type=float, default=0.01)
