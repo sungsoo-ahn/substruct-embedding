@@ -22,7 +22,7 @@ from tqdm import tqdm
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", type=str, default="tox21")
+    parser.add_argument("--dataset", type=str, default="zinc_standard_agent")
     parser.add_argument("--num_epochs", type=int, default=10)
     parser.add_argument("--num_warmup_epochs", type=int, default=1)
     parser.add_argument("--log_freq", type=float, default=10)
@@ -42,7 +42,7 @@ def main():
 
     parser.add_argument("--run_tag", type=str, default="")
 
-    parser.add_argument("--num_clusters", type=int, default=50000)
+    parser.add_argument("--num_clusters", type=int, default=100000)
     parser.add_argument("--use_density_rescaling", action="store_true")
     parser.add_argument("--use_euclidean_clustering", action="store_true")
     parser.add_argument("--proto_temperature", type=float, default=0.01)
