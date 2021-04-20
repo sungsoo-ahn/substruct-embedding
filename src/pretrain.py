@@ -14,16 +14,15 @@ from data.collate import contrastive_collate
 from scheme.graph_clustering import GraphClusteringScheme, GraphClusteringModel
 from scheme.graph_clustering_noaug import GraphClusteringNoAugScheme, GraphClusteringNoAugModel
 from scheme.node_clustering import NodeClusteringScheme, NodeClusteringModel
+from scheme.node_graph_clustering import NodeGraphClusteringScheme, NodeGraphClusteringModel
 from evaluate_knn import get_eval_datasets, evaluate_knn
 
 import neptune.new as neptune
 
-from tqdm import tqdm
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", type=str, default="zinc_standard_agent")
-    parser.add_argument("--num_epochs", type=int, default=10)
+    parser.add_argument("--num_epochs", type=int, default=50)
     parser.add_argument("--num_warmup_epochs", type=int, default=1)
     parser.add_argument("--log_freq", type=float, default=10)
     parser.add_argument("--cluster_freq", type=float, default=1)
@@ -93,6 +92,14 @@ def main():
         transform = mask_data_twice
         collate_fn = contrastive_collate
 
+    elif args.scheme == "node_graph_clustering":
+        scheme = NodeGraphClusteringScheme(
+            num_clusters=args.num_clusters,
+            use_euclidean_clustering=args.use_euclidean_clustering
+            )
+        model = NodeGraphClusteringModel(use_density_rescaling=args.use_density_rescaling)
+        transform = mask_data_twice
+        collate_fn = contrastive_collate
 
     print("Loading model...")
     model = model.to(device)
@@ -148,7 +155,7 @@ def main():
             for key, val in cluster_statistics.items():
                 run[f"cluster/{key}"].log(val)
 
-        for batch in tqdm(loader):
+        for batch in loader:
             step += 1
             train_statistics = scheme.train_step(batch, model, optim, device)
 
