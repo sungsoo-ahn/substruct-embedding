@@ -4,6 +4,7 @@
 #SBATCH --ntasks=1
 #SBATCH --time=24:00:00
 #SBATCH --output=/nfs/projects/mbzuai/peterahn/workspace/substruct-embedding/resource/result/nc.log
+#SBATCH --mem=50G
 #SBATCH -N 1
 #SBATCH -G 1
 

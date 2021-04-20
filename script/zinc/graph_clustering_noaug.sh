@@ -9,6 +9,7 @@ echo $MODEL_PATH
 
 python pretrain.py \
 --scheme graph_clustering_noaug \
+--num_epochs 100 \
 --run_tag $RUN_TAG
 
 for DATASET in "tox21" "bace" "bbbp" "toxcast" "sider" "clintox" "hiv"

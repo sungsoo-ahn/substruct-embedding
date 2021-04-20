@@ -178,9 +178,9 @@ def main():
 
         run[f"eval/total/acc"].log(eval_acc)
         
-        #torch.save(
-        #    model.encoder.state_dict(), f"../resource/result/{run_tag}/model_{epoch:02d}.pt"
-        #)
+        torch.save(
+            model.encoder.state_dict(), f"../resource/result/{run_tag}/model_{epoch:02d}.pt"
+        )
 
     torch.save(model.encoder.state_dict(), f"../resource/result/{run_tag}/model.pt")
 
