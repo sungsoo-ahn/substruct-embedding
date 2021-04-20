@@ -108,7 +108,7 @@ def run_clustering(
     result = {"centroids": centroids, "item2cluster": item2cluster, "density": density}
 
     obj = clus.iteration_stats.at(clus.iteration_stats.size() - 1).obj
-    bincount = torch.bincount(item2cluster)
-    statistics = {"obj": obj, "bincount": bincount}
+    #bincount = torch.bincount(item2cluster)
+    statistics = {"obj": obj}#, "bincount": bincount}
 
     return result, statistics
