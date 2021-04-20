@@ -1,11 +1,10 @@
 #!/bin/bash
 
-RUN_TAG="graph_clustering_final"
+RUN_TAG="graph_clustering"
 MODEL_PATH="../resource/result/${RUN_TAG}/model.pt"
 
 echo $RUN_TAG
 echo $MODEL_PATH
-
 
 python pretrain.py \
 --scheme graph_clustering \
