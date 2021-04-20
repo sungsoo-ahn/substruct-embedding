@@ -13,7 +13,7 @@ class NodeClusteringModel(torch.nn.Module):
         self.emb_dim = 300
         self.proj_dim = 100
         self.drop_rate = 0.0
-        self.proto_temperature = 0.2
+        self.proto_temperature = 0.01
         self.contrastive_temperature = 0.04
         self.ema_rate = 0.995                
         self.criterion = torch.nn.CrossEntropyLoss()
@@ -42,43 +42,55 @@ class NodeClusteringModel(torch.nn.Module):
         for param, ema_param in zip(self.projector.parameters(), self.ema_projector.parameters()):
             ema_param.data = ema_param.data * self.ema_rate + param.data * (1. - self.ema_rate)
 
-    def compute_ema_features_node(self, x, edge_index, edge_attr, batch):
-        out = self.ema_encoder(x, edge_index, edge_attr)
-        out = self.ema_projector(out)
-        features_node = torch.nn.functional.normalize(out, p=2, dim=1)
-        
-        return features_node
-    
-    def compute_ema_features_graph(self, x, edge_index, edge_attr, batch):
-        out = self.ema_encoder(x, edge_index, edge_attr)
-        out = self.ema_projector(out)
-        out = torch.nn.functional.normalize(out, p=2, dim=1)
-        features_graph = global_mean_pool(out, batch)
-        features_graph = torch.nn.functional.normalize(features_graph, p=2, dim=1)
-        
-        return features_graph
-    
-    
-    def compute_logits_and_labels(self, x, edge_index, edge_attr, batch, dataset_node_idx):
+    def compute_ema_features(self, x, edge_index, edge_attr, batch):
         out = self.encoder(x, edge_index, edge_attr)
         out = self.projector(out)
         features_node = torch.nn.functional.normalize(out, p=2, dim=1)
         
-        _ = get_contrastive_logits_and_labels(features_node)
+        return features_node
+
+    def compute_ema_features_graph(self, x, edge_index, edge_attr, batch):        
+        out = self.encoder(x, edge_index, edge_attr)
+        out = self.projector(out)
+        features_node = torch.nn.functional.normalize(out, p=2, dim=1)
+
+        features_graph = global_mean_pool(features_node, batch)
+        features_graph = torch.nn.functional.normalize(features_graph, p=2, dim=1)
+
+        return features_graph
+    
+    def compute_logits_and_labels(
+        self, x, edge_index, edge_attr, batch, dataset_node_idx
+        ):
+        out = self.encoder(x, edge_index, edge_attr)
+        out = self.projector(out)
+        features_node = torch.nn.functional.normalize(out, p=2, dim=1)
+
+        # Subsample nodes for fast computation
+        node_mask = torch.bernoulli(torch.zeros(x.size(0) // 2), p=0.1).bool().to(x.device)
+        node_mask = torch.cat([node_mask, node_mask], axis=0)
+        sampled_feature_nodes = features_node[node_mask]
+        
+        _ = get_contrastive_logits_and_labels(sampled_feature_nodes)
         logits_node_contrastive, labels_node_contrastive = _
         logits_node_contrastive /= self.contrastive_temperature
         
         logits_and_labels = {
             "node_contrastive": [logits_node_contrastive, labels_node_contrastive],
         }
-        
+
         if self.node_centroids is not None:
-            logits_node_proto = torch.mm(features_node, self.node_centroids.T)
+            batch_active = self.node_active[dataset_node_idx]
+            node_mask = (batch_active > 0)
+            sampled_feature_nodes = features_node[node_mask]
+            logits_node_proto = torch.mm(sampled_feature_nodes, self.node_centroids.T)
             logits_node_proto /= self.proto_temperature
             if self.use_density_rescaling:
                 logits_node_proto /= self.node_density.unsqueeze(0)
-                
-            labels_node_proto = self.node2cluster[dataset_node_idx]
+            
+            tmp = (batch_active[batch_active > 0] - 1)
+            labels_node_proto = self.node2cluster[tmp]
+            
             logits_and_labels["node_proto"] = [logits_node_proto, labels_node_proto]
         
         return logits_and_labels
@@ -102,7 +114,7 @@ class NodeClusteringScheme:
         self.centroids = None
         self.node2cluster = None
         self.density = None
-
+    
     def assign_cluster(self, loader, model, device):
         print("Collecting graph features for clustering...")
         model.eval()
@@ -110,8 +122,8 @@ class NodeClusteringScheme:
         with torch.no_grad():
             for batch in loader:
                 batch = batch.to(device)
-                out = model.compute_ema_features_node(
-                    batch.x, batch.edge_index, batch.edge_attr, batch.batch
+                out = model.compute_ema_features(
+                    batch.x, batch.edge_index, batch.edge_attr, batch.batch,
                     )
 
                 if node_features is None:
@@ -119,6 +131,12 @@ class NodeClusteringScheme:
 
                 node_features[batch.dataset_node_idx] = out
 
+        node_active = torch.zeros(loader.dataset.num_nodes)
+        node_active = torch.bernoulli(node_active, p=0.1).long().to(device)
+        node_active[node_active > 0] = (torch.arange(node_active.sum()).to(device) + 1)
+        model.node_active = node_active
+        
+        node_features = node_features[node_active > 0]
         node_features = node_features.cpu().numpy()
         
         clus_result, statistics = run_clustering(
@@ -131,12 +149,12 @@ class NodeClusteringScheme:
             self.clus_max_points_per_centroid,
             self.clus_min_points_per_centroid,
             self.clus_use_euclidean_clustering,
-            device
+            0
             )
         model.node_centroids = clus_result["centroids"].to(device)
         model.node2cluster = clus_result["item2cluster"].to(device)
         model.node_density = clus_result["density"].to(device)
-        
+                
         return statistics
 
     def train_step(self, batch, model, optim, device):
@@ -144,15 +162,20 @@ class NodeClusteringScheme:
         batch = batch.to(device)
         
         logits_and_labels = model.compute_logits_and_labels(
-            batch.x, batch.edge_index, batch.edge_attr, batch.batch, batch.dataset_node_idx
+            batch.x, 
+            batch.edge_index, 
+            batch.edge_attr, 
+            batch.batch, 
+            batch.dataset_node_idx, 
             )
+        
         
         loss_cum = 0.0
         statistics = dict()
         for key in logits_and_labels:
             logits, labels = logits_and_labels[key]
             loss = model.criterion(logits, labels)
-            acc = compute_accuracy(logits, labels)
+            acc = compute_accuracy(logits, labels)                
             
             loss_cum += loss
             

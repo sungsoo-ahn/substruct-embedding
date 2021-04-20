@@ -1,6 +1,5 @@
 #!/bin/bash
 
-NEPTUNE_MODE=$1
 RUN_TAG="graph_clustering"
 MODEL_PATH="../resource/result/${RUN_TAG}/model.pt"
 
