@@ -64,9 +64,12 @@ def evaluate_knn(featurizer, train_dataset, test_dataset, device):
     acc = sum(roc_list) / len(roc_list)
     return {"acc": acc}
 
-def get_eval_datasets():
+def get_eval_datasets(names=None):
+    if names is None:
+        names = ["tox21", "hiv", "muv", "bace", "bbbp", "toxcast", "sider", "clintox"]
+    
     datasets = dict()
-    for name in ["tox21", "hiv", "muv", "bace", "bbbp", "toxcast", "sider", "clintox"]:
+    for name in names:
         print(f"Loading {name} dataset...")
         dataset = MoleculeDataset("../resource/dataset/" + name, dataset=name)
         train_dataset, _, test_dataset = scaffold_split(

@@ -51,9 +51,9 @@ class GraphClusteringModel(torch.nn.Module):
             ema_param.data = ema_param.data * self.ema_rate + param.data * (1. - self.ema_rate)
 
     def compute_ema_features_graph(self, x, edge_index, edge_attr, batch):
-        out = self.ema_encoder(x, edge_index, edge_attr)
+        out = self.encoder(x, edge_index, edge_attr)
         out = global_mean_pool(out, batch)
-        features_graph = self.ema_projector(out)
+        features_graph = self.projector(out)
         features_graph = torch.nn.functional.normalize(features_graph, p=2, dim=1)
 
         return features_graph
@@ -66,17 +66,19 @@ class GraphClusteringModel(torch.nn.Module):
         features_node = torch.nn.functional.normalize(features_node, p=2, dim=1)
         features_graph = torch.nn.functional.normalize(features_graph, p=2, dim=1)
 
+        """
         _ = get_contrastive_logits_and_labels(features_node)
         logits_node_contrastive, labels_node_contrastive = _
         logits_node_contrastive /= self.contrastive_temperature
-
+        """
+        
         _ = get_contrastive_logits_and_labels(features_graph)
         logits_graph_contrastive, labels_graph_contrastive = _
         logits_graph_contrastive /= self.contrastive_temperature
 
         logits_and_labels = {
             "graph_contrastive": [logits_graph_contrastive, labels_graph_contrastive],
-            "node_contrastive": [logits_node_contrastive, labels_node_contrastive],
+            #"node_contrastive": [logits_node_contrastive, labels_node_contrastive],
         }
 
         if self.graph_centroids is not None:
@@ -96,9 +98,6 @@ class GraphClusteringScheme:
         self.num_clusters = num_clusters
         self.clus_use_euclidean_clustering = use_euclidean_clustering
 
-        self.proto_temperature = 0.2
-        self.contrastive_temperature = 0.04
-
         self.clus_verbose = True
         self.clus_niter = 20
         self.clus_nredo = 1
@@ -110,17 +109,28 @@ class GraphClusteringScheme:
         print("Collecting graph features for clustering...")
         model.eval()
         graph_features = None
+        loss = 0.0
         with torch.no_grad():
             for batch in loader:
                 batch = batch.to(device)
-                out = model.compute_ema_features_graph(
+                features_graph = model.compute_ema_features_graph(
                     batch.x, batch.edge_index, batch.edge_attr, batch.batch
                     )
 
                 if graph_features is None:
-                    graph_features = torch.zeros(len(loader.dataset), out.size(1)).to(device)
+                    graph_features = torch.zeros(len(loader.dataset), features_graph.size(1)).to(device)
 
-                graph_features[batch.dataset_graph_idx] = out
+                graph_features[batch.dataset_graph_idx] = features_graph
+                
+                if model.graph_centroids is not None:
+                    logits_graph_proto = torch.mm(features_graph, model.graph_centroids.T)
+                    logits_graph_proto /= model.proto_temperature
+                    labels_graph_proto = model.graph2cluster[batch.dataset_graph_idx]
+                    loss += model.criterion(logits_graph_proto, labels_graph_proto) * features_graph.size(0)
+            
+        loss /= len(loader.dataset)
+        
+        print(loss)
 
         graph_features = graph_features.cpu().numpy()
 
@@ -153,9 +163,6 @@ class GraphClusteringScheme:
         loss_cum = 0.0
         statistics = dict()
         for key in logits_and_labels:
-            if "graph_proto" in logits_and_labels and key != "graph_proto":
-                continue
-            
             logits, labels = logits_and_labels[key]
             loss = model.criterion(logits, labels)
             acc = compute_accuracy(logits, labels)

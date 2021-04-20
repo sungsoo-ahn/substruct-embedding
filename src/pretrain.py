@@ -12,6 +12,7 @@ from data.splitter import random_split
 from data.transform import mask_data_twice
 from data.collate import contrastive_collate
 from scheme.graph_clustering import GraphClusteringScheme, GraphClusteringModel
+from scheme.graph_clustering_noaug import GraphClusteringNoAugScheme, GraphClusteringNoAugModel
 from scheme.node_clustering import NodeClusteringScheme, NodeClusteringModel
 from evaluate_knn import get_eval_datasets, evaluate_knn
 
@@ -21,16 +22,17 @@ from tqdm import tqdm
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", type=str, default="zinc_standard_agent")
-    parser.add_argument("--num_epochs", type=int, default=20)
+    parser.add_argument("--dataset", type=str, default="tox21")
+    parser.add_argument("--num_epochs", type=int, default=10)
     parser.add_argument("--num_warmup_epochs", type=int, default=1)
-    parser.add_argument("--log_freq", type=float, default=100)
+    parser.add_argument("--log_freq", type=float, default=10)
+    parser.add_argument("--cluster_freq", type=float, default=1)
 
     parser.add_argument("--scheme", type=str, default="graph_clustering")
 
     parser.add_argument("--batch_size", type=int, default=256)
     parser.add_argument("--cluster_batch_size", type=int, default=8192)
-    parser.add_argument("--num_workers", type=int, default=0)
+    parser.add_argument("--num_workers", type=int, default=8)
 
     parser.add_argument("--num_layers", type=int, default=5)
     parser.add_argument("--emb_dim", type=int, default=300)
@@ -43,7 +45,7 @@ def main():
     parser.add_argument("--num_clusters", type=int, default=50000)
     parser.add_argument("--use_density_rescaling", action="store_true")
     parser.add_argument("--use_euclidean_clustering", action="store_true")
-    parser.add_argument("--proto_temperature", type=float, default=0.00001)
+    parser.add_argument("--proto_temperature", type=float, default=0.01)
     parser.add_argument("--ema_rate", type=float, default=0.0)
     
     parser.add_argument("--neptune_mode", type=str, default="async")
@@ -62,6 +64,19 @@ def main():
             use_euclidean_clustering=args.use_euclidean_clustering,
             )
         model = GraphClusteringModel(
+            use_density_rescaling=args.use_density_rescaling,             
+            proto_temperature=args.proto_temperature,
+            ema_rate=args.ema_rate,
+            )
+        transform = mask_data_twice
+        collate_fn = contrastive_collate
+    
+    if args.scheme == "graph_clustering_noaug":
+        scheme = GraphClusteringNoAugScheme(
+            num_clusters=args.num_clusters, 
+            use_euclidean_clustering=args.use_euclidean_clustering,
+            )
+        model = GraphClusteringNoAugModel(
             use_density_rescaling=args.use_density_rescaling,             
             proto_temperature=args.proto_temperature,
             ema_rate=args.ema_rate,
@@ -113,7 +128,6 @@ def main():
         num_workers=args.num_workers,
     )
 
-
     print("Loading neptune...")
     run = neptune.init(
         project="sungsahn0215/substruct-embedding", name="train_embedding", mode=args.neptune_mode
@@ -127,20 +141,14 @@ def main():
 
     step = 0
     for epoch in range(args.num_epochs):
-<<<<<<< HEAD
         run[f"epoch"].log(epoch)            
         
-        if (epoch + 1) > args.num_warmup_epochs:
-=======
-        run[f"epoch"].log(epoch)
-
-        if epoch + 1> args.num_warmup_epochs:
->>>>>>> 6ed7d59b500c21896231e5d391c5508b61170b08
+        if ((epoch + 1) > args.num_warmup_epochs and (epoch + 1) % args.cluster_freq == 0):
             cluster_statistics = scheme.assign_cluster(cluster_loader, model, device)
             for key, val in cluster_statistics.items():
                 run[f"cluster/{key}"].log(val)
 
-        for batch in loader:
+        for batch in tqdm(loader):
             step += 1
             train_statistics = scheme.train_step(batch, model, optim, device)
 
@@ -148,9 +156,11 @@ def main():
                 for key, val in train_statistics.items():
                     run[f"train/{key}"].log(val)
 
-
         if epoch == 0:
-            eval_datasets = get_eval_datasets()
+            if args.dataset == "zinc_standard_agent":
+                eval_datasets = get_eval_datasets()
+            else:
+                eval_datasets = get_eval_datasets([args.dataset])
 
         model.eval()
         eval_acc = 0.0
@@ -167,10 +177,10 @@ def main():
             eval_acc += eval_statistics["acc"] / len(eval_datasets)
 
         run[f"eval/total/acc"].log(eval_acc)
-
-        torch.save(
-            model.encoder.state_dict(), f"../resource/result/{run_tag}/model_{epoch:02d}.pt"
-        )
+        
+        #torch.save(
+        #    model.encoder.state_dict(), f"../resource/result/{run_tag}/model_{epoch:02d}.pt"
+        #)
 
     torch.save(model.encoder.state_dict(), f"../resource/result/{run_tag}/model.pt")
 

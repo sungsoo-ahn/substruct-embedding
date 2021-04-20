@@ -53,5 +53,12 @@ def mask_data_twice(data):
         dataset_graph_idx=data.dataset_graph_idx.clone(),
         dataset_node_idx=data.dataset_node_idx.clone(),
     )
-    data1 = mask_data(data)
+    #data1 = mask_data(data)
+    data1 = Data(
+        x=data.x.clone(),
+        edge_index=data.edge_index.clone(),
+        edge_attr=data.edge_attr.clone(),
+        dataset_graph_idx=data.dataset_graph_idx.clone(),
+        dataset_node_idx=data.dataset_node_idx.clone(),
+    )
     return data0, data1
