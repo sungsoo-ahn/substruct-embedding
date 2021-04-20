@@ -1,6 +1,6 @@
 #!/bin/bash
 
-RUN_TAG="node_graph_clustering"
+RUN_TAG="node_graph_clustering_final"
 MODEL_PATH="../resource/result/${RUN_TAG}/model.pt"
 
 echo $RUN_TAG
