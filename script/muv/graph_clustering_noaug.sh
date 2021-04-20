@@ -7,9 +7,10 @@ echo $RUN_TAG
 echo $MODEL_PATH
 
 python pretrain.py \
---num_cluster 100 \
+--num_cluster 9000 \
 --log_freq 1 \
---cluster_freq 5 \
+--cluster_freq 2 \
+--num_epochs 20 \
 --scheme graph_clustering_noaug \
 --dataset muv \
 --run_tag $RUN_TAG
