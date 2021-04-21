@@ -16,14 +16,14 @@ from data.dataset import MoleculeDataset
 from data.splitter import scaffold_split
 from torch_geometric.nn import global_mean_pool
 
-def compute_all_features(featurizer, loader, device):
+def compute_all_features(featurizer, loader):
     features = []
     labels = []
     num_tasks = loader.dataset.num_tasks
     with torch.no_grad():
         for batch in loader:
-            batch = batch.to(device)            
-            features_ = featurizer(batch.x, batch.edge_index, batch.edge_attr, batch.batch)
+            batch = batch.to(0)
+            features_ = featurizer(batch)
             features.append(features_.cpu().numpy())
             labels.append(batch.y.reshape(-1, num_tasks).cpu().numpy())
 
@@ -35,7 +35,7 @@ def compute_all_features(featurizer, loader, device):
     return features, labels, is_valid
 
 
-def evaluate_knn(featurizer, train_dataset, test_dataset, device):
+def evaluate_knn(featurizer, train_dataset, test_dataset):
    
     train_loader = DataLoader(
         train_dataset, batch_size=1024, shuffle=False, num_workers=8
@@ -44,8 +44,8 @@ def evaluate_knn(featurizer, train_dataset, test_dataset, device):
         test_dataset, batch_size=1024, shuffle=False, num_workers=8
     )
 
-    train_features, train_labels, train_is_valid = compute_all_features(featurizer, train_loader, device)
-    test_features, test_labels, test_is_valid = compute_all_features(featurizer, test_loader, device)
+    train_features, train_labels, train_is_valid = compute_all_features(featurizer, train_loader)
+    test_features, test_labels, test_is_valid = compute_all_features(featurizer, test_loader)
 
     roc_list = []
     for idx in range(train_loader.dataset.num_tasks):
