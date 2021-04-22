@@ -120,35 +120,39 @@ class NodeGraphClusteringNoAugScheme:
         node_features = None
         graph_features = None
 
-        model.graph_centroids = None
-        model.node_centroids = None
-        model.graph2cluster = None
-        model.node2cluster = None
+        del model.graph_centroids
+        del model.node_centroids
+        del model.graph2cluster
+        del model.node2cluster
         torch.cuda.empty_cache()
 
-        for batch in loader:
-            with torch.no_grad():
+        with torch.no_grad():
+            for batch in loader:
                 batch = batch.to(0)
-                out0, out1 = model.compute_features(batch)
+                features_node, features_graph = model.compute_features(batch)
 
                 if node_features is None:
-                    node_features = torch.zeros(loader.dataset.num_nodes, out0.size(1)).cuda()
+                    node_features = torch.zeros(
+                        loader.dataset.num_nodes, features_node.size(1)
+                        )
 
                 if graph_features is None:
-                    graph_features = torch.zeros(len(loader.dataset), out1.size(1)).cuda()
-
-                node_features[batch.dataset_node_idx] = out0
-                graph_features[batch.dataset_graph_idx] = out1
+                    graph_features = torch.zeros(
+                        len(loader.dataset), features_graph.size(1)
+                        )
+                    
+                node_features[batch.dataset_node_idx] = features_node.cpu()
+                graph_features[batch.dataset_graph_idx] = features_graph.cpu()
 
         node_active = torch.zeros(loader.dataset.num_nodes)
-        node_active = torch.bernoulli(node_active, p=0.1).long().cuda()
+        node_active = torch.bernoulli(node_active, p=0.1).long()
         node_active[node_active > 0] = (torch.arange(node_active.sum()).cuda() + 1)
         model.node_active = node_active
 
         node_features = node_features[node_active > 0]
-        node_features = node_features.cpu().numpy()
+        node_features = node_features.numpy()
 
-        graph_features = graph_features.cpu().numpy()
+        graph_features = graph_features.numpy()
 
         node_clus_result, node_statistics = run_clustering(
             node_features,

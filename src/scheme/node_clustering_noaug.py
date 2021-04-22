@@ -94,24 +94,31 @@ class NodeClusteringNoAugScheme:
         print("Collecting graph features for clustering...")
         model.eval()
         node_features = None
+
+        del model.graph_centroids
+        del model.node_centroids
+        del model.graph2cluster
+        del model.node2cluster
+        torch.cuda.empty_cache()
+
         with torch.no_grad():
             for batch in loader:
                 batch = batch.to(0)
                 out = model.compute_node_features(batch)
 
                 if node_features is None:
-                    node_features = torch.zeros(loader.dataset.num_nodes, out.size(1)).cuda()
+                    node_features = torch.zeros(loader.dataset.num_nodes, out.size(1))
 
-                node_features[batch.dataset_node_idx] = out
+                node_features[batch.dataset_node_idx] = out.cpu()
 
         node_active = torch.zeros(loader.dataset.num_nodes)
-        node_active = torch.bernoulli(node_active, p=0.1).long().cuda()
-        node_active[node_active > 0] = (torch.arange(node_active.sum()).cuda() + 1)
+        node_active = torch.bernoulli(node_active, p=0.1).long()
+        node_active[node_active > 0] = (torch.arange(node_active.sum()) + 1)
         model.node_active = node_active
-        
+
         node_features = node_features[node_active > 0]
-        node_features = node_features.cpu().numpy()
-        
+        node_features = node_features.numpy()
+
         clus_result, statistics = run_clustering(
             node_features,
             self.num_clusters,
@@ -126,7 +133,7 @@ class NodeClusteringNoAugScheme:
             )
         model.node_centroids = clus_result["centroids"].cuda()
         model.node2cluster = clus_result["item2cluster"].cuda()
-                
+
         return statistics
 
     def train_step(self, batch, model, optim):
