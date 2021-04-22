@@ -1,13 +1,13 @@
 #!/bin/bash
 
-RUN_TAG="node_clustering_noaug"
+RUN_TAG="node_graph_clustering_noaug"
 MODEL_PATH="../resource/result/${RUN_TAG}/model.pt"
 
 echo $RUN_TAG
 echo $MODEL_PATH
 
 python pretrain_clustering.py \
---scheme node_clustering_noaug \
+--scheme node_graph_clustering_noaug \
 --num_epochs 20 \
 --run_tag $RUN_TAG
 

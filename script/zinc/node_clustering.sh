@@ -6,7 +6,7 @@ MODEL_PATH="../resource/result/${RUN_TAG}/model.pt"
 echo $RUN_TAG
 echo $MODEL_PATH
 
-python pretrain.py \
+python pretrain_clustering.py \
 --scheme node_clustering \
 --num_epochs 20 \
 --run_tag $RUN_TAG
