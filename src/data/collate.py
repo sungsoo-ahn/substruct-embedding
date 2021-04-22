@@ -36,8 +36,12 @@ def collate(data_list):
 
     return batch.contiguous()    
 
-def contrastive_collate(data_list):
+def collate_twice(data_list):
     data_list0, data_list1 = map(list, zip(*data_list))
     return collate(data_list0), collate(data_list1)
+
+def collate_cat(data_list):
+    data_list = [data for data_ in zip(*data_list) for data in data_]
+    return collate(data_list)
 
     
