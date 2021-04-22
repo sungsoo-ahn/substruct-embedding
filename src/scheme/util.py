@@ -62,6 +62,7 @@ def run_clustering(
     clus.spherical = (not use_euclidean_clustering)
 
     res = faiss.StandardGpuResources()
+    res.noTempMemory()
     cfg = faiss.GpuIndexFlatConfig()
     cfg.useFloat16 = True
     cfg.device = device
