@@ -25,7 +25,7 @@ def get_contrastive_logits_and_labels(features):
 
     logits = torch.cat([positives, negatives], dim=1)
     labels = torch.zeros(logits.shape[0], dtype=torch.long).to(features.device)
-    
+
     return logits, labels
 
 def mask_nodes(x, edge_index, edge_attr, mask_rate):
@@ -63,7 +63,7 @@ def run_clustering(
 
     res = faiss.StandardGpuResources()
     cfg = faiss.GpuIndexFlatConfig()
-    cfg.useFloat16 = False
+    cfg.useFloat16 = True
     cfg.device = device
     index = faiss.GpuIndexFlatL2(res, d, cfg)
 
@@ -76,39 +76,15 @@ def run_clustering(
     # get cluster centroids
     centroids = faiss.vector_to_array(clus.centroids).reshape(num_clusters, d)
 
-    # sample-to-centroid distances for each cluster
-    Dcluster = [[] for c in range(num_clusters)]
-    for im, i in enumerate(item2cluster):
-        Dcluster[i].append(D[im][0])
-
-    # concentration estimation (phi)
-    density = np.zeros(num_clusters)
-    for i, dist in enumerate(Dcluster):
-        if len(dist) > 1:
-            d = (np.asarray(dist) ** 0.5).mean() / np.log(len(dist) + 10)
-            density[i] = d
-
-    # if cluster only has one point, use the max to estimate its concentration
-    dmax = density.max()
-    for i, dist in enumerate(Dcluster):
-        if len(dist) <= 1:
-            density[i] = dmax
-
-    # clamp extreme values for stability
-    density = density.clip(np.percentile(density, 10), np.percentile(density, 90))
-
-    # scale the mean to temperature
-    density = density / density.mean()
-
     # convert to cuda Tensors for broadcast
     centroids = torch.Tensor(centroids)
     item2cluster = torch.LongTensor(item2cluster)
-    density = torch.Tensor(density)
 
-    result = {"centroids": centroids, "item2cluster": item2cluster, "density": density}
+    result = {"centroids": centroids, "item2cluster": item2cluster}
 
     obj = clus.iteration_stats.at(clus.iteration_stats.size() - 1).obj
-    #bincount = torch.bincount(item2cluster)
-    statistics = {"obj": obj}#, "bincount": bincount}
+    statistics = {"obj": obj}
+
+    index.reset()
 
     return result, statistics

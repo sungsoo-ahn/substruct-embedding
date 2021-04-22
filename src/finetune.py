@@ -16,6 +16,7 @@ from data.splitter import scaffold_split
 
 criterion = nn.BCEWithLogitsLoss(reduction="none")
 
+import os
 
 def train(model, optimizer, loader, device):
     model.train()
@@ -92,6 +93,9 @@ def main():
     parser.add_argument("--neptune_mode", type=str, default="sync")
 
     args = parser.parse_args()
+
+    if not args.model_path == "":
+        assert os.path.exists(args.model_path)
 
     device = torch.device(0)
 

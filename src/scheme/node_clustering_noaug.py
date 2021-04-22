@@ -29,7 +29,6 @@ class NodeClusteringNoAugModel(torch.nn.Module):
 
         self.node_centroids = None
         self.node2cluster = None
-        self.node_density = None
         
     def compute_node_features(self, batch):        
         out = self.encoder(batch.x, batch.edge_index, batch.edge_attr)
@@ -90,8 +89,7 @@ class NodeClusteringNoAugScheme:
 
         self.centroids = None
         self.node2cluster = None
-        self.density = None
-    
+        
     def assign_cluster(self, loader, model):
         print("Collecting graph features for clustering...")
         model.eval()
@@ -128,7 +126,6 @@ class NodeClusteringNoAugScheme:
             )
         model.node_centroids = clus_result["centroids"].cuda()
         model.node2cluster = clus_result["item2cluster"].cuda()
-        model.node_density = clus_result["density"].cuda()
                 
         return statistics
 

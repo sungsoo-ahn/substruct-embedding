@@ -17,7 +17,7 @@ class NodeClusteringModel(torch.nn.Module):
         self.contrastive_temperature = 0.04
         self.criterion = torch.nn.CrossEntropyLoss()
 
-        self.encoder = NodeEncoder(self.num_layers, self.emb_dim, self.drop_rate)        
+        self.encoder = NodeEncoder(self.num_layers, self.emb_dim, self.drop_rate)
         if use_linear_projection:
             self.projector = torch.nn.Linear(self.emb_dim, self.proj_dim)
         else:
@@ -29,23 +29,22 @@ class NodeClusteringModel(torch.nn.Module):
 
         self.node_centroids = None
         self.node2cluster = None
-        self.node_density = None
-        
-    def compute_node_features(self, batch):        
+
+    def compute_node_features(self, batch):
         out = self.encoder(batch.x, batch.edge_index, batch.edge_attr)
         out = self.projector(out)
         node_features = torch.nn.functional.normalize(out, p=2, dim=1)
 
         return node_features
 
-    def compute_node_features(self, batch):        
+    def compute_node_features(self, batch):
         out = self.encoder(batch.x, batch.edge_index, batch.edge_attr)
         out = self.projector(out)
         node_features = torch.nn.functional.normalize(out, p=2, dim=1)
 
         return node_features
 
-    def compute_graph_features(self, batch):        
+    def compute_graph_features(self, batch):
         out = self.encoder(batch.x, batch.edge_index, batch.edge_attr)
         out = self.projector(out)
         node_features = torch.nn.functional.normalize(out, p=2, dim=1)
@@ -54,7 +53,7 @@ class NodeClusteringModel(torch.nn.Module):
         graph_features = torch.nn.functional.normalize(graph_features, p=2, dim=1)
 
         return graph_features
-    
+
     def compute_logits_and_labels(self, batch):
         out = self.encoder(batch.x, batch.edge_index, batch.edge_attr)
         out = self.projector(out)
@@ -64,11 +63,11 @@ class NodeClusteringModel(torch.nn.Module):
         node_mask = torch.bernoulli(torch.zeros(batch.x.size(0) // 2), p=0.1).bool().cuda()
         node_mask = torch.cat([node_mask, node_mask], axis=0)
         sampled_feature_nodes = features_node[node_mask]
-        
+
         _ = get_contrastive_logits_and_labels(sampled_feature_nodes)
         logits_node_contrastive, labels_node_contrastive = _
         logits_node_contrastive /= self.contrastive_temperature
-        
+
         logits_and_labels = {
             "node_contrastive": [logits_node_contrastive, labels_node_contrastive],
         }
@@ -79,22 +78,22 @@ class NodeClusteringModel(torch.nn.Module):
             sampled_feature_nodes = features_node[node_mask]
             logits_node_proto = torch.mm(sampled_feature_nodes, self.node_centroids.T)
             logits_node_proto /= self.proto_temperature
-            
+
             tmp = (batch_active[batch_active > 0] - 1)
             labels_node_proto = self.node2cluster[tmp]
-            
+
             logits_and_labels["node_proto"] = [logits_node_proto, labels_node_proto]
-        
+
         return logits_and_labels
-    
+
 
 class NodeClusteringScheme:
     def __init__(self, num_clusters):
         self.num_clusters = num_clusters
-        
+
         self.proto_temperature = 0.2
         self.contrastive_temperature = 0.04
-        
+
         self.clus_verbose = True
         self.clus_niter = 20
         self.clus_nredo = 1
@@ -103,14 +102,17 @@ class NodeClusteringScheme:
         self.clus_min_points_per_centroid = 10
         self.clus_use_euclidean_clustering = False
 
-        self.centroids = None
-        self.node2cluster = None
-        self.density = None
-    
     def assign_cluster(self, loader, model):
         print("Collecting graph features for clustering...")
         model.eval()
         node_features = None
+
+        model.graph_centroids = None
+        model.node_centroids = None
+        model.graph2cluster = None
+        model.node2cluster = None
+        torch.cuda.empty_cache()
+
         with torch.no_grad():
             for batch in loader:
                 batch = batch.to(0)
@@ -125,10 +127,10 @@ class NodeClusteringScheme:
         node_active = torch.bernoulli(node_active, p=0.1).long().cuda()
         node_active[node_active > 0] = (torch.arange(node_active.sum()).cuda() + 1)
         model.node_active = node_active
-        
+
         node_features = node_features[node_active > 0]
         node_features = node_features.cpu().numpy()
-        
+
         clus_result, statistics = run_clustering(
             node_features,
             self.num_clusters,
@@ -143,30 +145,29 @@ class NodeClusteringScheme:
             )
         model.node_centroids = clus_result["centroids"].cuda()
         model.node2cluster = clus_result["item2cluster"].cuda()
-        model.node_density = clus_result["density"].cuda()
-                
+
         return statistics
 
     def train_step(self, batch, model, optim):
         model.train()
         batch = batch.to(0)
-        
+
         logits_and_labels = model.compute_logits_and_labels(batch)
-        
+
         loss_cum = 0.0
         statistics = dict()
         for key in logits_and_labels:
             logits, labels = logits_and_labels[key]
             loss = model.criterion(logits, labels)
-            acc = compute_accuracy(logits, labels)                
-            
+            acc = compute_accuracy(logits, labels)
+
             loss_cum += loss
-            
+
             statistics[f"{key}/loss"] = loss.detach()
             statistics[f"{key}/acc"] = acc
-            
+
         optim.zero_grad()
         loss_cum.backward()
         optim.step()
-        
+
         return statistics
