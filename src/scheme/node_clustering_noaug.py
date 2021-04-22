@@ -95,9 +95,7 @@ class NodeClusteringNoAugScheme:
         model.eval()
         node_features = None
 
-        del model.graph_centroids
         del model.node_centroids
-        del model.graph2cluster
         del model.node2cluster
         torch.cuda.empty_cache()
 
