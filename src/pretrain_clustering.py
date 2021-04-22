@@ -16,6 +16,7 @@ from scheme.node_clustering import NodeClusteringScheme, NodeClusteringModel
 from scheme.node_graph_clustering import NodeGraphClusteringScheme, NodeGraphClusteringModel
 from scheme.graph_clustering_noaug import GraphClusteringNoAugScheme, GraphClusteringNoAugModel
 from scheme.node_clustering_noaug import NodeClusteringNoAugScheme, NodeClusteringNoAugModel
+from scheme.node_graph_clustering_noaug import NodeGraphClusteringNoAugScheme, NodeGraphClusteringNoAugModel
 from evaluate_knn import get_eval_datasets, evaluate_knn
 
 import neptune.new as neptune
@@ -43,7 +44,7 @@ def main():
 
     parser.add_argument("--run_tag", type=str, default="")
 
-    parser.add_argument("--num_clusters", type=int, default=100000)
+    parser.add_argument("--num_clusters", type=int, default=50000)
     parser.add_argument("--use_linear_projection", action="store_true")
     parser.add_argument("--proto_temperature", type=float, default=0.01)
     parser.add_argument("--ema_rate", type=float, default=0.0)
@@ -80,15 +81,19 @@ def main():
         model = GraphClusteringNoAugModel(use_linear_projection=args.use_linear_projection)
         transform = None
         collate_fn = collate
-        #args.num_warmup_epochs = 0
 
     elif args.scheme == "node_clustering_noaug":
         scheme = NodeClusteringNoAugScheme(num_clusters=args.num_clusters)
         model = NodeClusteringNoAugModel(use_linear_projection=args.use_linear_projection)
         transform = None
         collate_fn = collate
-        #args.num_warmup_epochs = 0
 
+    elif args.scheme == "node_graph_clustering_noaug":
+        scheme = NodeGraphClusteringNoAugScheme(num_clusters=args.num_clusters)
+        model = NodeGraphClusteringNoAugModel(use_linear_projection=args.use_linear_projection)
+        transform = None
+        collate_fn = collate
+        
     print("Loading model...")
     model = model.cuda()
     optim = torch.optim.Adam(

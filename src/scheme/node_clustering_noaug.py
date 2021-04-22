@@ -4,14 +4,7 @@ import torch
 from torch_geometric.nn import global_mean_pool
 
 from model import NodeEncoder
-from scheme.util import compute_accuracy, get_contrastive_logits_and_labels, run_clustering
-
-class GCELoss(torch.nn.Module):
-    def forward(self, logits, labels):
-        probs = torch.softmax(logits, dim=1)
-        p = torch.gather(probs, 1, torch.unsqueeze(labels, 1))
-        loss = -torch.mean((p ** 0.7))
-        return loss
+from scheme.util import compute_accuracy, run_clustering
 
 class NodeClusteringNoAugModel(torch.nn.Module):
     def __init__(self, use_linear_projection):
@@ -86,15 +79,12 @@ class NodeClusteringNoAugModel(torch.nn.Module):
 class NodeClusteringNoAugScheme:
     def __init__(self, num_clusters):
         self.num_clusters = num_clusters
-
-        self.proto_temperature = 0.2
-        self.contrastive_temperature = 0.04
         
         self.clus_verbose = True
         self.clus_niter = 20
         self.clus_nredo = 1
         self.clus_seed = 0
-        self.clus_max_points_per_centroid = 1000
+        self.clus_max_points_per_centroid = 500
         self.clus_min_points_per_centroid = 10
         self.clus_use_euclidean_clustering = False
 
