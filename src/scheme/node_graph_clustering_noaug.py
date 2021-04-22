@@ -146,7 +146,7 @@ class NodeGraphClusteringNoAugScheme:
 
         node_active = torch.zeros(loader.dataset.num_nodes)
         node_active = torch.bernoulli(node_active, p=0.1).long()
-        node_active[node_active > 0] = (torch.arange(node_active.sum()).cuda() + 1)
+        node_active[node_active > 0] = (torch.arange(node_active.sum()) + 1)
         model.node_active = node_active
 
         node_features = node_features[node_active > 0]
