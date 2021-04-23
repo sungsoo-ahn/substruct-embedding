@@ -47,10 +47,15 @@ class MaskedRWPredModel(nn.Module):
         out = self.encoder(batch.x, batch.edge_index, batch.edge_attr)
         
         num_nodes = batch.x.size(0)
+        lstm_x = batch.y.clone()
+        lstm_x[batch.y_mask] = 0
         pad = torch.zeros(num_nodes, 1, dtype=torch.long).cuda()
-        lstm_x = torch.cat([pad, batch.y[:, :-1]], dim=1)
+        lstm_x = torch.cat([pad, lstm_x[:, :-1]], dim=1)
         logits = self.classifier(lstm_x, out)
         labels = batch.y - 1
+        
+        logits = logits[batch.y_mask]
+        labels = labels[batch.y_mask]
         
         return logits, labels
     
@@ -63,8 +68,6 @@ class MaskedRWPredScheme():
         batch = batch.to(0)
         
         logits, labels = model.compute_logits_and_labels(batch)
-        logits = logits.view(-1, logits.size(2))
-        labels = batch.y.view(-1)
         
         loss = model.criterion(logits, labels)
         acc = compute_accuracy(logits, labels)                

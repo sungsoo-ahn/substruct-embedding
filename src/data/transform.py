@@ -146,14 +146,17 @@ def mask_data_and_rw_label(data, walk_length, mask_rate=0.15):
     else:
         rw_nodes = torch.arange(num_nodes).unsqueeze(1)
     
-    y = x[:, 0][rw_nodes]
+    y = data.x[:, 0][rw_nodes].clone()
     
     node_mask = torch.zeros(num_nodes, dtype=torch.bool)
     node_mask[mask_nodes] = True
     
+    y_mask = node_mask[rw_nodes]
+    
     data = Data(
         x=x,
         y=y,
+        y_mask=y_mask,
         node_mask=node_mask,
         edge_index=data.edge_index.clone(),
         edge_attr=data.edge_attr.clone(),
