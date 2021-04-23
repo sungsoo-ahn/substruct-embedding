@@ -167,7 +167,7 @@ def mask_data_and_rw_label(data, walk_length, mask_rate=0.15):
     return data
     
 
-def mask_data_twice(data):
+def mask_data_twice(data, mask_rate=0.3):
     """
     data0 = Data(
         x=data.x.clone(),
@@ -177,8 +177,8 @@ def mask_data_twice(data):
         dataset_node_idx=data.dataset_node_idx.clone(),
     )
     """
-    data0 = mask_data(data)
-    data1 = mask_data(data)
+    data0 = mask_data(data, mask_rate=0.3)
+    data1 = mask_data(data, mask_rate=0.3)
     
     return data0, data1
 
