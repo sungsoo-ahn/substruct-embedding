@@ -89,31 +89,77 @@ def khop_subgraph_data_twice(data):
     return data0, data1
 
 
-def mask_nodes(x, edge_index, edge_attr, mask_rate):
-    num_nodes = x.size(0)
+def mask_data(data, mask_rate=0.3):
+    num_nodes = data.x.size(0)
     num_mask_nodes = min(int(mask_rate * num_nodes), 1)
     mask_nodes = list(sorted(random.sample(range(num_nodes), num_mask_nodes)))
     
-    x = x.clone()
-    x[mask_nodes] = 0
+    x = data.x.clone()
+    x[mask_nodes, 0] = 0
     
-    return x, edge_index, edge_attr
-
-
-def mask_data(data):
-    x, edge_index, edge_attr = mask_nodes(
-        data.x.clone(), data.edge_index.clone(), data.edge_attr.clone(), mask_rate=0.3
-    )
-
     data = Data(
         x=x,
-        edge_index=edge_index,
-        edge_attr=edge_attr,
-        dataset_graph_idx=data.dataset_graph_idx,
-        dataset_node_idx=data.dataset_node_idx,
+        edge_index=data.edge_index.clone(),
+        edge_attr=data.edge_attr.clone(),
+        dataset_graph_idx=data.dataset_graph_idx.clone(),
+        dataset_node_idx=data.dataset_node_idx.clone(),
     )
     
     return data
+
+def mask_data_and_node_label(data, mask_rate=0.15):
+    num_nodes = data.x.size(0)
+    num_mask_nodes = min(int(mask_rate * num_nodes), 1)
+    mask_nodes = list(sorted(random.sample(range(num_nodes), num_mask_nodes)))
+    
+    x = data.x.clone()
+    x[mask_nodes, 0] = 0
+    
+    y = data.x[:, 0].clone()
+    
+    node_mask = torch.zeros(num_nodes, dtype=torch.bool)
+    node_mask[mask_nodes] = True
+    
+    data = Data(
+        x=x,
+        y=y,
+        node_mask=node_mask,
+        edge_index=data.edge_index.clone(),
+        edge_attr=data.edge_attr.clone(),
+        dataset_graph_idx=data.dataset_graph_idx.clone(),
+        dataset_node_idx=data.dataset_node_idx.clone(),
+    )
+    
+    return data
+
+def mask_data_and_rw_label(data, walk_length, mask_rate=0.15):   
+    num_nodes = data.x.size(0)
+    num_mask_nodes = min(int(mask_rate * num_nodes), 1)
+    mask_nodes = list(sorted(random.sample(range(num_nodes), num_mask_nodes)))
+    
+    x = data.x.clone()
+    x[mask_nodes, 0] = 0
+    
+    start = torch.arange(num_nodes)
+    rw_nodes = random_walk(data.edge_index[0], data.edge_index[1], start, walk_length)
+    
+    y = x[:, 0][rw_nodes]
+    
+    node_mask = torch.zeros(num_nodes, dtype=torch.bool)
+    node_mask[mask_nodes] = True
+    
+    data = Data(
+        x=x,
+        y=y,
+        node_mask=node_mask,
+        edge_index=data.edge_index.clone(),
+        edge_attr=data.edge_attr.clone(),
+        dataset_graph_idx=data.dataset_graph_idx.clone(),
+        dataset_node_idx=data.dataset_node_idx.clone(),
+    )
+    
+    return data
+    
 
 def mask_data_twice(data):
     """

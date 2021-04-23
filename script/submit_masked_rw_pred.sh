@@ -1,9 +1,10 @@
 #!/bin/bash
-#SBATCH --job-name=gc_muv
+#SBATCH --job-name=mrwp
 #SBATCH --partition=mbzuai
 #SBATCH --ntasks=1
 #SBATCH --time=24:00:00
-#SBATCH --output=/nfs/projects/mbzuai/peterahn/workspace/substruct-embedding/resource/result/gc_muv.log
+#SBATCH --output=/nfs/projects/mbzuai/peterahn/workspace/substruct-embedding/resource/result/mrwp.log
+#SBATCH --mem=50G
 #SBATCH -N 1
 #SBATCH -G 1
 
@@ -14,4 +15,4 @@ srun \
   --no-container-mount-home \
   --container-mounts="/nfs/projects/mbzuai/peterahn/workspace/substruct-embedding:/substruct-embedding" \
   --container-workdir="/substruct-embedding/src" \
-  bash ../script/muv/graph_clustering.sh
+  bash ../script/zinc/masked_rw_pred.sh $1
