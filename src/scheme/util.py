@@ -89,3 +89,27 @@ def run_clustering(
     index.reset()
 
     return result, statistics
+
+def sinkhon(out):
+    Q = torch.exp(out / epsilon).t() # Q is K-by-B for consistency with notations from our paper
+    B = Q.shape[1] # number of samples to assign
+    K = Q.shape[0] # how many prototypes
+
+    # make the matrix sums to 1
+    Q /= torch.sum(Q)
+
+    for it in range(args.sinkhorn_iterations):
+        # normalize each row: total weight per prototype must be 1/K
+        sum_of_rows = torch.sum(Q, dim=1, keepdim=True)
+        dist.all_reduce(sum_of_rows)
+        Q /= sum_of_rows
+        Q /= K
+
+        # normalize each column: total weight per sample must be 1/B
+        Q /= torch.sum(Q, dim=0, keepdim=True)
+        Q /= B
+
+    Q *= B
+
+    return Q.t()
+

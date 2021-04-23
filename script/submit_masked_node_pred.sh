@@ -15,4 +15,4 @@ srun \
   --no-container-mount-home \
   --container-mounts="/nfs/projects/mbzuai/peterahn/workspace/substruct-embedding:/substruct-embedding" \
   --container-workdir="/substruct-embedding/src" \
-  bash ../script/zinc/masked_node_pred.sh
+  bash ../script/masked_node_pred.sh

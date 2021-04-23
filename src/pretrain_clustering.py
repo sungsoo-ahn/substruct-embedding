@@ -14,6 +14,7 @@ from data.collate import collate, collate_cat
 from scheme.graph_clustering import GraphClusteringScheme, GraphClusteringModel
 from scheme.node_clustering import NodeClusteringScheme, NodeClusteringModel
 from scheme.node_graph_clustering import NodeGraphClusteringScheme, NodeGraphClusteringModel
+from scheme.clustering_bottleneck import ClusteringBottleneckScheme, ClusteringBottleneckModel
 from scheme.graph_clustering_noaug import GraphClusteringNoAugScheme, GraphClusteringNoAugModel
 from scheme.node_clustering_noaug import NodeClusteringNoAugScheme, NodeClusteringNoAugModel
 from scheme.node_graph_clustering_noaug import NodeGraphClusteringNoAugScheme, NodeGraphClusteringNoAugModel
@@ -76,6 +77,12 @@ def main():
         transform = mask_data_twice
         collate_fn = collate_cat
 
+    elif args.scheme == "clustering_bottleneck":
+        scheme = ClusteringBottleneckScheme(num_clusters=args.num_clusters,)
+        model = ClusteringBottleneckModel(use_linear_projection=args.use_linear_projection)
+        transform = mask_data_twice
+        collate_fn = collate_cat
+
     elif args.scheme == "graph_clustering_noaug":
         scheme = GraphClusteringNoAugScheme(num_clusters=args.num_clusters)
         model = GraphClusteringNoAugModel(use_linear_projection=args.use_linear_projection)
@@ -93,7 +100,7 @@ def main():
         model = NodeGraphClusteringNoAugModel(use_linear_projection=args.use_linear_projection)
         transform = None
         collate_fn = collate
-        
+
     print("Loading model...")
     model = model.cuda()
     optim = torch.optim.Adam(
