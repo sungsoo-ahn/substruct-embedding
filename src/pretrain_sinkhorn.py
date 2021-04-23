@@ -89,11 +89,11 @@ def main():
                 for key, val in train_statistics.items():
                     run[f"train/{key}"].log(val)
 
-        #torch.save(
-        #    model.ema_encoder.state_dict(), f"../resource/result/{run_tag}/model_{epoch:02d}.pt"
-        #)
+        torch.save(
+            model.encoder.state_dict(), f"../resource/result/{run_tag}/model_{epoch:02d}.pt"
+        )
 
-    #torch.save(model.encoder.state_dict(), f"../resource/result/{run_tag}/model.pt")
+    torch.save(model.encoder.state_dict(), f"../resource/result/{run_tag}/model.pt")
 
     if args.use_neptune:
         run.stop()
