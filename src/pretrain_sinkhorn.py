@@ -23,15 +23,15 @@ def main():
     parser.add_argument("--num_epochs", type=int, default=100)
     parser.add_argument("--log_freq", type=float, default=10)
 
-    parser.add_argument("--batch_size", type=int, default=256)
+    parser.add_argument("--batch_size", type=int, default=512)
     parser.add_argument("--num_workers", type=int, default=8)
 
     parser.add_argument("--run_tag", type=str, default="")
 
     parser.add_argument("--scheme", type=str, default="sinkhorn")
 
-    parser.add_argument("--mask_rate", type=float, default=0.15)
-    parser.add_argument("--num_centroids", type=int, default=50000)
+    parser.add_argument("--mask_rate", type=float, default=0.3)
+    parser.add_argument("--num_centroids", type=int, default=5000)
     parser.add_argument("--use_neptune", action="store_true")
 
     args = parser.parse_args()
@@ -112,9 +112,9 @@ def main():
 
         run[f"eval/total/acc"].log(eval_acc)
 
-        #torch.save(
-        #    model.encoder.state_dict(), f"../resource/result/{run_tag}/model_{epoch:02d}.pt"
-        #)
+        torch.save(
+            model.encoder.state_dict(), f"../resource/result/{run_tag}/model_{epoch:02d}.pt"
+        )
 
     torch.save(model.encoder.state_dict(), f"../resource/result/{run_tag}/model.pt")
 

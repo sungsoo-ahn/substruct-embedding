@@ -36,28 +36,19 @@ class SinkhornModel(torch.nn.Module):
         super(SinkhornModel, self).__init__()
         self.num_layers = 5
         self.emb_dim = 300
-        self.proj_dim = 100
         self.drop_rate = 0.0
-        self.contrastive_temperature = 0.04
         self.eps = 0.01
-        self.num_sinkhon_iters = 10
+        self.num_sinkhon_iters = 3
         self.num_centroids = num_centroids
         self.use_stacked_sinkhorn = False
 
         self.criterion = torch.nn.CrossEntropyLoss()
 
         self.encoder = NodeEncoder(self.num_layers, self.emb_dim, self.drop_rate)
-        self.projector = torch.nn.Linear(self.emb_dim, self.proj_dim)
+        self.projector = torch.nn.Linear(self.emb_dim, self.emb_dim)
         self.sinkhorn = SinkhornLayer(self.num_sinkhon_iters)
 
-        self.centroids = nn.Parameter(torch.randn(self.num_centroids, self.proj_dim))
-
-    def compute_node_features(self, batch):
-        out = self.encoder(batch.x, batch.edge_index, batch.edge_attr)
-        out = self.projector(out)
-        node_features = torch.nn.functional.normalize(out, p=2, dim=1)
-
-        return node_features
+        self.centroids = nn.Parameter(torch.randn(self.num_centroids, self.emb_dim))
 
     def compute_graph_features(self, batch):
         out = self.encoder(batch.x, batch.edge_index, batch.edge_attr)
@@ -66,18 +57,8 @@ class SinkhornModel(torch.nn.Module):
 
         graph_features = global_mean_pool(node_features, batch.batch)
         graph_features = torch.nn.functional.normalize(graph_features, p=2, dim=1)
-
+        
         return graph_features
-
-    def compute_features(self, batch):
-        out = self.encoder(batch.x, batch.edge_index, batch.edge_attr)
-        out = self.projector(out)
-        node_features = torch.nn.functional.normalize(out, p=2, dim=1)
-
-        graph_features = global_mean_pool(node_features, batch.batch)
-        graph_features = torch.nn.functional.normalize(graph_features, p=2, dim=1)
-
-        return node_features, graph_features
 
     def compute_loss(self, batch):
         out = self.encoder(batch.x, batch.edge_index, batch.edge_attr)
@@ -117,8 +98,12 @@ class SinkhornModel(torch.nn.Module):
             stacked_sinkhorn_mask0, stacked_sinkhorn_mask1 = torch.chunk(
                 stacked_sinkhorn_mask, 2, dim=0
                 )
-            stacked_sinkhorn_coupling0 = self.sinkhorn(stacked_score_mat0, mask=stacked_sinkhorn_mask0)
-            stacked_sinkhorn_coupling1 = self.sinkhorn(stacked_score_mat1, mask=stacked_sinkhorn_mask1)
+            stacked_sinkhorn_coupling0 = self.sinkhorn(
+                stacked_score_mat0, mask=stacked_sinkhorn_mask0
+                )
+            stacked_sinkhorn_coupling1 = self.sinkhorn(
+                stacked_score_mat1, mask=stacked_sinkhorn_mask1
+                )
 
             stacked_sinkhorn_loss = torch.sum(
                 stacked_sinkhorn_coupling1*torch.exp(stacked_score_mat0)

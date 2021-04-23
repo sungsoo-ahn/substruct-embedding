@@ -90,7 +90,7 @@ def khop_subgraph_data_twice(data):
 
 def mask_data(data, mask_rate=0.3):
     num_nodes = data.x.size(0)
-    num_mask_nodes = min(int(mask_rate * num_nodes), 1)
+    num_mask_nodes = max(int(mask_rate * num_nodes), 1)
     mask_nodes = list(sorted(random.sample(range(num_nodes), num_mask_nodes)))
     
     x = data.x.clone()
@@ -109,7 +109,7 @@ def mask_data(data, mask_rate=0.3):
 
 def mask_data_and_node_label(data, mask_rate=0.15):
     num_nodes = data.x.size(0)
-    num_mask_nodes = min(int(mask_rate * num_nodes), 1)
+    num_mask_nodes = max(int(mask_rate * num_nodes), 1)
     mask_nodes = list(sorted(random.sample(range(num_nodes), num_mask_nodes)))
     
     x = data.x.clone()
@@ -134,7 +134,7 @@ def mask_data_and_node_label(data, mask_rate=0.15):
 
 def mask_data_and_rw_label(data, walk_length, mask_rate=0.15):   
     num_nodes = data.x.size(0)
-    num_mask_nodes = min(int(mask_rate * num_nodes), 1)
+    num_mask_nodes = max(int(mask_rate * num_nodes), 1)
     mask_nodes = list(sorted(random.sample(range(num_nodes), num_mask_nodes)))
     
     x = data.x.clone()

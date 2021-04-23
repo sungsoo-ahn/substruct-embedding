@@ -76,7 +76,9 @@ class MaskedRWPredScheme():
         loss.backward()
         optim.step()
         
-        statistics = {"loss": loss, "acc": acc}
+        statistics = {
+            "loss": loss, "acc": acc, "mask_rate": torch.sum(batch.y_mask) / batch.x.size(0)
+            }
         
         return statistics
             
