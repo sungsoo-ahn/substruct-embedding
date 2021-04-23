@@ -88,7 +88,6 @@ def khop_subgraph_data_twice(data):
     
     return data0, data1
 
-
 def mask_data(data, mask_rate=0.3):
     num_nodes = data.x.size(0)
     num_mask_nodes = min(int(mask_rate * num_nodes), 1)
@@ -105,7 +104,8 @@ def mask_data(data, mask_rate=0.3):
         dataset_node_idx=data.dataset_node_idx.clone(),
     )
     
-    return data
+    return data    
+
 
 def mask_data_and_node_label(data, mask_rate=0.15):
     num_nodes = data.x.size(0)

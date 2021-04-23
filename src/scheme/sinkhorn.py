@@ -6,6 +6,8 @@ from torch_geometric.nn import global_mean_pool
 from model import NodeEncoder
 from scheme.util import compute_accuracy, get_contrastive_logits_and_labels, run_clustering
 
+class mask
+
 class SinkhornLayer(torch.nn.Module):
     def __init__(self, eps, num_iters):
         super(SinkhornLayer, self).__init__()
@@ -40,7 +42,7 @@ class SinkhornLayer(torch.nn.Module):
         output = output / out_size
         return (output * K).sum(dim=[1, 2])
 
-class ClusteringBottleneckModel(torch.nn.Module):
+class SinkhornModel(torch.nn.Module):
     def __init__(self, use_linear_projection):
         super(ClusteringBottleneckModel, self).__init__()
         self.num_layers = 5
@@ -103,6 +105,7 @@ class ClusteringBottleneckModel(torch.nn.Module):
             torch.sum(sinkhorn_coupling1*dist_mat0) + torch.sum(sinkhorn_coupling0*dist_mat1)
         )
 
+        """
         stacked_node_features = batch.sinkhorn_mask.clone().float()
         stacked_node_features[stacked_node_features>0] = node_features
         stacked_node_features = stacked_node_features.view(batch.batch_size, -1)
@@ -130,9 +133,10 @@ class ClusteringBottleneckModel(torch.nn.Module):
         stacked_sinkhorn_loss /= batch.batch_size
 
         return sinkhorn_loss, stacked_sinkhorn_loss
+        """
+        return sinkhorn_loss
 
-
-class ClusteringBottleneckScheme:
+class SinkhornScheme:
     def __init__(self, num_clusters):
         self.num_clusters = num_clusters
 
@@ -149,22 +153,12 @@ class ClusteringBottleneckScheme:
         model.train()
         batch = batch.to(0)
 
-        logits_and_labels = model.compute_logits_and_labels(batch)
-
-        loss_cum = 0.0
-        statistics = dict()
-        for key in logits_and_labels:
-            logits, labels = logits_and_labels[key]
-            loss = model.criterion(logits, labels)
-            acc = compute_accuracy(logits, labels)
-
-            loss_cum += loss
-
-            statistics[f"{key}/loss"] = loss.detach()
-            statistics[f"{key}/acc"] = acc
+        loss = sinkhorn_loss = model.compute_loss(batch)
 
         optim.zero_grad()
-        loss_cum.backward()
+        loss.backward()
         optim.step()
+
+        statistics = {"loss": loss.detach().item(), "sinkhorn_loss": sinkhorn_loss.detach().item()}
 
         return statistics

@@ -9,10 +9,9 @@ import torch_geometric
 from model import NodeEncoder
 from data.dataset import MoleculeDataset
 from data.splitter import random_split
-from data.transform import mask_data_and_node_label, mask_data_and_rw_label
+from data.transform import mask_data_twice
 from data.collate import collate
-from scheme.masked_rw_pred import MaskedRWPredModel, MaskedRWPredScheme
-from scheme.masked_node_pred import MaskedNodePredModel, MaskedNodePredScheme
+from scheme.sinkhorn import SinkhornModel, SinkhornScheme
 
 import neptune.new as neptune
 from tqdm import tqdm
@@ -41,17 +40,10 @@ def main():
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(0)
 
-    if args.scheme == "masked_node_pred":
-        scheme = MaskedNodePredScheme()
-        model = MaskedNodePredModel()
-        transform = lambda data: mask_data_and_node_label(data, mask_rate=args.mask_rate)
-
-    elif args.scheme == "masked_rw_pred":
-        scheme = MaskedRWPredScheme()
-        model = MaskedRWPredModel()
-        transform = lambda data: mask_data_and_rw_label(
-            data, walk_length=args.walk_length, mask_rate=args.mask_rate
-            )
+    if args.scheme == "sinkhorn":
+        scheme = SinkhornScheme()
+        model = SinkhornModel()
+        transform = lambda data: mask_data_twice(data, mask_rate=args.mask_rate)
 
     print("Loading model...")
     model = model.cuda()
@@ -97,11 +89,11 @@ def main():
                 for key, val in train_statistics.items():
                     run[f"train/{key}"].log(val)
 
-        torch.save(
-            model.ema_encoder.state_dict(), f"../resource/result/{run_tag}/model_{epoch:02d}.pt"
-        )
+        #torch.save(
+        #    model.ema_encoder.state_dict(), f"../resource/result/{run_tag}/model_{epoch:02d}.pt"
+        #)
 
-    torch.save(model.encoder.state_dict(), f"../resource/result/{run_tag}/model.pt")
+    #torch.save(model.encoder.state_dict(), f"../resource/result/{run_tag}/model.pt")
 
     if args.use_neptune:
         run.stop()

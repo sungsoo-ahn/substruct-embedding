@@ -12,14 +12,19 @@ def collate(data_list):
     batch.batch = []
     batch.batch_num_nodes = []
     batch.batch_size = len(data_list)
-    batch.num_views = 2
-
+    batch.sinkhorn_mask = []
+    
     cumsum_node = 0
+    max_num_nodes = max([data.x.size(0) for data in data_list])
     for i, data in enumerate(data_list):
         num_nodes = data.x.size(0)
         batch.batch.append(torch.full((num_nodes,), i, dtype=torch.long))
         batch.batch_num_nodes.append(torch.LongTensor([num_nodes]))
-
+        
+        sinkhorn_mask = torch.zeros(max_num_nodes, dtype=torch.bool)
+        sinkhorn_mask[:num_nodes] = True
+        batch.sinkhorn_mask.append(sinkhorn_mask)
+        
         for key in keys:
             item = data[key]
             if key in ["edge_index"]:
@@ -33,6 +38,7 @@ def collate(data_list):
     batch.batch_num_nodes = torch.LongTensor(batch.batch_num_nodes)
     for key in keys:
         batch[key] = torch.cat(batch[key], dim=data_list[0].__cat_dim__(key, batch[key][0]))
+
 
     return batch.contiguous()    
 
