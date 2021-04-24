@@ -11,7 +11,7 @@ python pretrain_clustering.py \
 --num_epochs 20 \
 --run_tag $RUN_TAG
 
-for DATASET in "tox21" "bace" "bbbp" "toxcast" "sider" "clintox" "hiv"
+for DATASET in "tox21" "bace" "bbbp" "toxcast" "sider" "clintox"
 do
 	python finetune.py \
 	--dataset $DATASET \
