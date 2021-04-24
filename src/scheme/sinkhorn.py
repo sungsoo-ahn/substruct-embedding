@@ -38,9 +38,10 @@ class SinkhornModel(torch.nn.Module):
         self.emb_dim = 300
         self.drop_rate = 0.0
         self.eps = 0.01
-        self.num_sinkhon_iters = 3
+        self.num_sinkhon_iters = 10
         self.num_centroids = num_centroids
         self.use_stacked_sinkhorn = False
+        self.queue_size = 50000
 
         self.criterion = torch.nn.CrossEntropyLoss()
 
@@ -49,7 +50,15 @@ class SinkhornModel(torch.nn.Module):
         self.sinkhorn = SinkhornLayer(self.num_sinkhon_iters)
 
         self.centroids = nn.Parameter(torch.randn(self.num_centroids, self.emb_dim))
+    
+        self.register_buffer("queue", torch.randn(self.emb_dim, self.queue_size))
+        self.queue = torch.nn.functional.normalize(self.queue, dim=0)
 
+    @torch.no_grad()
+    def dequeue_and_enqueue(self, keys):
+        batch_size = keys.size(0)
+        self.queue = torch.cat([self.queue, keys.T], dim=1)[:, -self.queue_size:]
+            
     def compute_graph_features(self, batch):
         out = self.encoder(batch.x, batch.edge_index, batch.edge_attr)
         out = self.projector(out)
@@ -67,10 +76,14 @@ class SinkhornModel(torch.nn.Module):
         centroid_features = torch.nn.functional.normalize(self.centroids, p=2, dim=1)
 
         node_features0, node_features1 = torch.chunk(node_features, 2, dim=0)
+        node_features0 = torch.cat([node_features0, self.queue.T], dim=0)
+        node_features1 = torch.cat([node_features1, self.queue.T], dim=0)
         score_mat0 = torch.einsum('nc,mc->nm', [node_features0, centroid_features]) / self.eps
         score_mat1 = torch.einsum('nc,mc->nm', [node_features1, centroid_features]) / self.eps
-        sinkhorn_coupling0 = self.sinkhorn(score_mat0.unsqueeze(0)).squeeze(0)
-        sinkhorn_coupling1 = self.sinkhorn(score_mat1.unsqueeze(0)).squeeze(0)
+
+        with torch.no_grad():
+            sinkhorn_coupling0 = self.sinkhorn(score_mat0.unsqueeze(0)).squeeze(0)
+            sinkhorn_coupling1 = self.sinkhorn(score_mat1.unsqueeze(0)).squeeze(0)
 
         log_probs0 = torch.nn.functional.log_softmax(score_mat0, dim=1)
         log_probs1 = torch.nn.functional.log_softmax(score_mat1, dim=1)
@@ -79,6 +92,8 @@ class SinkhornModel(torch.nn.Module):
             - (sinkhorn_coupling1*log_probs0).sum(1).mean(0)
             - (sinkhorn_coupling0*log_probs1).sum(1).mean(0)
         )
+
+        self.dequeue_and_enqueue(node_features0)
 
         if self.use_stacked_sinkhorn:
             stacked_node_features = batch.sinkhorn_mask.clone().float()

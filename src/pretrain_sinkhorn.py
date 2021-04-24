@@ -17,13 +17,15 @@ from evaluate_knn import get_eval_datasets, evaluate_knn
 import neptune.new as neptune
 from tqdm import tqdm
 
+torch.multiprocessing.set_sharing_strategy('file_system')
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", type=str, default="zinc_standard_agent")
     parser.add_argument("--num_epochs", type=int, default=100)
     parser.add_argument("--log_freq", type=float, default=10)
 
-    parser.add_argument("--batch_size", type=int, default=512)
+    parser.add_argument("--batch_size", type=int, default=256)
     parser.add_argument("--num_workers", type=int, default=8)
 
     parser.add_argument("--run_tag", type=str, default="")
@@ -97,20 +99,21 @@ def main():
             else:
                 eval_datasets = get_eval_datasets([args.dataset])
 
-        model.eval()
-        eval_acc = 0.0
-        for name in eval_datasets:
-            eval_statistics = evaluate_knn(
-                model.compute_graph_features,
-                eval_datasets[name]["train"],
-                eval_datasets[name]["test"],
-            )
-            for key, val in eval_statistics.items():
-                run[f"eval/{name}/{key}"].log(val)
+        if args.use_neptune:
+            model.eval()
+            eval_acc = 0.0
+            for name in eval_datasets:
+                eval_statistics = evaluate_knn(
+                    model.compute_graph_features,
+                    eval_datasets[name]["train"],
+                    eval_datasets[name]["test"],
+                )
+                for key, val in eval_statistics.items():
+                    run[f"eval/{name}/{key}"].log(val)
 
-            eval_acc += eval_statistics["acc"] / len(eval_datasets)
+                eval_acc += eval_statistics["acc"] / len(eval_datasets)
 
-        run[f"eval/total/acc"].log(eval_acc)
+            run[f"eval/total/acc"].log(eval_acc)
 
         torch.save(
             model.encoder.state_dict(), f"../resource/result/{run_tag}/model_{epoch:02d}.pt"

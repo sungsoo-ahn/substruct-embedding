@@ -36,10 +36,19 @@ def collate(data_list):
 
     batch.batch = torch.cat(batch.batch, dim=-1)
     batch.batch_num_nodes = torch.LongTensor(batch.batch_num_nodes)
+    
+    for y in batch.y:
+        if y.min().item() == 0:
+            print(y)
+            assert False    
     for key in keys:
         batch[key] = torch.cat(batch[key], dim=data_list[0].__cat_dim__(key, batch[key][0]))
 
+    print(batch.y.min())
 
+    if batch.y.min().item() == 0:
+        assert False
+        
     return batch.contiguous()    
 
 def collate_twice(data_list):

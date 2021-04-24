@@ -9,10 +9,9 @@ import torch_geometric
 from model import NodeEncoder
 from data.dataset import MoleculeDataset
 from data.splitter import random_split
-from data.transform import mask_data_and_node_label, mask_data_and_rw_label
 from data.collate import collate
-from scheme.masked_rw_pred import MaskedRWPredModel, MaskedRWPredScheme
-from scheme.masked_node_pred import MaskedNodePredModel, MaskedNodePredScheme
+from scheme.node_contrastive import NodeContrastiveModel, NodeContrastiveScheme
+from evaluate_knn import get_eval_datasets, evaluate_knn
 
 import neptune.new as neptune
 from tqdm import tqdm
@@ -41,20 +40,11 @@ def main():
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(0)
 
-    if args.scheme == "masked_node_pred":
-        scheme = MaskedNodePredScheme()
-        model = MaskedNodePredModel()
-        transform = lambda data: mask_data_and_node_label(data, mask_rate=args.mask_rate)
-
-    elif args.scheme == "masked_rw_pred":
-        scheme = MaskedRWPredScheme()
-        model = MaskedRWPredModel()
-        transform = lambda data: mask_data_and_rw_label(
-            data, walk_length=args.walk_length, mask_rate=args.mask_rate
-            )
-
+    scheme = NodeContrastiveScheme()
+    model = NodeContrastiveModel()
+    
     print("Loading model...")
-    model = model#.cuda()
+    model = model.cuda()
     optim = torch.optim.Adam(
         [param for param in model.parameters() if param.requires_grad], lr=1e-3
         )
@@ -63,7 +53,7 @@ def main():
     dataset = MoleculeDataset(
         "../resource/dataset/" + args.dataset,
         dataset=args.dataset,
-        transform=transform,
+        transform=None,
     )
 
     loader = torch.utils.data.DataLoader(
@@ -77,7 +67,7 @@ def main():
 
     if args.use_neptune:
         print("Loading neptune...")
-        run = neptune.init(project="sungsahn0215/pretrain-label", name=args.scheme)
+        run = neptune.init(project="sungsahn0215/substruct-embedding", name=args.scheme)
         run["parameters"] = vars(args)
         if args.run_tag == "":
             run_tag = run["sys/id"].fetch()
@@ -96,6 +86,27 @@ def main():
             if step % args.log_freq == 0 and args.use_neptune:
                 for key, val in train_statistics.items():
                     run[f"train/{key}"].log(val)
+
+        if epoch == 0:
+            if args.dataset == "zinc_standard_agent":
+                eval_datasets = get_eval_datasets()
+            else:
+                eval_datasets = get_eval_datasets([args.dataset])
+
+        model.eval()
+        eval_acc = 0.0
+        for name in eval_datasets:
+            eval_statistics = evaluate_knn(
+                model.compute_graph_features,
+                eval_datasets[name]["train"],
+                eval_datasets[name]["test"],
+            )
+            for key, val in eval_statistics.items():
+                run[f"eval/{name}/{key}"].log(val)
+
+            eval_acc += eval_statistics["acc"] / len(eval_datasets)
+
+        run[f"eval/total/acc"].log(eval_acc)
 
         torch.save(
             model.encoder.state_dict(), f"../resource/result/{run_tag}/model_{epoch:02d}.pt"

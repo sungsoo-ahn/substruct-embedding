@@ -140,13 +140,20 @@ def mask_data_and_rw_label(data, walk_length, mask_rate=0.15):
     x = data.x.clone()
     x[mask_nodes, 0] = 0
     
+    print("start randomwalk")
+    print(data.edge_index[0])
+    print(data.edge_index[1])
     if walk_length > 0:
         start = torch.arange(num_nodes)
         rw_nodes = random_walk(data.edge_index[0], data.edge_index[1], start, walk_length)
     else:
         rw_nodes = torch.arange(num_nodes).unsqueeze(1)
     
+    print(rw_nodes)
+    print(x.size())
+    
     y = data.x[:, 0][rw_nodes].clone()
+    print(y.min())
     
     node_mask = torch.zeros(num_nodes, dtype=torch.bool)
     node_mask[mask_nodes] = True
