@@ -9,7 +9,7 @@ import torch_geometric
 from model import NodeEncoder
 from data.dataset import MoleculeDataset
 from data.splitter import random_split
-from data.transform import mask_data_twice
+from data.transform import mask_data_twice, mask_data
 from data.collate import collate, collate_cat
 from scheme.graph_clustering import GraphClusteringScheme, GraphClusteringModel
 from scheme.node_clustering import NodeClusteringScheme, NodeClusteringModel
@@ -86,19 +86,19 @@ def main():
     elif args.scheme == "graph_clustering_noaug":
         scheme = GraphClusteringNoAugScheme(num_clusters=args.num_clusters)
         model = GraphClusteringNoAugModel(use_linear_projection=args.use_linear_projection)
-        transform = None
+        transform = mask_data
         collate_fn = collate
 
     elif args.scheme == "node_clustering_noaug":
         scheme = NodeClusteringNoAugScheme(num_clusters=args.num_clusters)
         model = NodeClusteringNoAugModel(use_linear_projection=args.use_linear_projection)
-        transform = None
+        transform = mask_data
         collate_fn = collate
 
     elif args.scheme == "node_graph_clustering_noaug":
         scheme = NodeGraphClusteringNoAugScheme(num_clusters=args.num_clusters)
         model = NodeGraphClusteringNoAugModel(use_linear_projection=args.use_linear_projection)
-        transform = None
+        transform = mask_data
         collate_fn = collate
 
     print("Loading model...")

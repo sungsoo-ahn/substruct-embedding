@@ -5,6 +5,7 @@ from torch_geometric.nn import global_mean_pool
 
 from model import NodeEncoder
 from scheme.util import compute_accuracy, run_clustering
+from torch_geometric.utils import to_dense_adj
 
 class NodeClusteringNoAugModel(torch.nn.Module):
     def __init__(self, use_linear_projection):
@@ -54,6 +55,20 @@ class NodeClusteringNoAugModel(torch.nn.Module):
 
         logits_and_labels = dict()
         losses = dict()
+        
+        """
+        contrastive_logits = torch.mm(node_features, node_features.T) / self.proto_temperature
+        contrastive_log_probs = torch.log_softmax(contrastive_logits, dim=1)
+        
+        adj = to_dense_adj(batch.edge_index, max_num_nodes = batch.x.size(0)).squeeze(0)
+        adj = adj + torch.eye(adj.size(0), dtype=torch.long).cuda()
+        adj = (torch.mm(adj, adj) > 0).float()
+        contrastive_targets = adj
+        contrastive_targets /= contrastive_targets.sum(dim=0).unsqueeze(dim=0)
+        losses["neighbor_contrastive"] = (
+            -(contrastive_targets * contrastive_log_probs).sum(dim=1).mean(dim=0)
+        )
+        """
         
         if self.node_centroids is not None:
             batch_active = self.node_active[batch.dataset_node_idx]
