@@ -1,9 +1,9 @@
 #!/bin/bash
-#SBATCH --job-name=ngc
+#SBATCH --job-name=ngcl
 #SBATCH --partition=mbzuai
 #SBATCH --ntasks=1
 #SBATCH --time=24:00:00
-#SBATCH --output=/nfs/projects/mbzuai/peterahn/workspace/substruct-embedding/resource/result/ngc.log
+#SBATCH --output=/nfs/projects/mbzuai/peterahn/workspace/substruct-embedding/resource/result/ngcl.log
 #SBATCH --mem=50G
 #SBATCH -N 1
 #SBATCH -G 1
@@ -15,4 +15,4 @@ srun \
   --no-container-mount-home \
   --container-mounts="/nfs/projects/mbzuai/peterahn/workspace/substruct-embedding:/substruct-embedding" \
   --container-workdir="/substruct-embedding/src" \
-  bash ../script/node_graph_clustering.sh
+  bash ../script/node_graph_clustering_linear.sh
