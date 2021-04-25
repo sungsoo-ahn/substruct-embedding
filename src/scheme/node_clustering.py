@@ -7,7 +7,7 @@ from model import NodeEncoder
 from scheme.util import compute_accuracy, get_contrastive_logits_and_labels, run_clustering
 
 class NodeClusteringModel(torch.nn.Module):
-    def __init__(self, use_density_rescaling):
+    def __init__(self, use_density_rescaling, contrastive_type):
         super(NodeClusteringModel, self).__init__()
         self.num_layers = 5
         self.emb_dim = 300
@@ -18,6 +18,7 @@ class NodeClusteringModel(torch.nn.Module):
         self.ema_rate = 0.995                
         self.criterion = torch.nn.CrossEntropyLoss()
         self.use_density_rescaling = use_density_rescaling
+        self.contrastive_type = contrastive_type
 
         self.encoder = NodeEncoder(self.num_layers, self.emb_dim, self.drop_rate)
         self.ema_encoder = NodeEncoder(self.num_layers, self.emb_dim, self.drop_rate)
@@ -66,19 +67,33 @@ class NodeClusteringModel(torch.nn.Module):
         out = self.projector(out)
         features_node = torch.nn.functional.normalize(out, p=2, dim=1)
 
-        # Subsample nodes for fast computation
-        #node_mask = torch.bernoulli(torch.zeros(x.size(0) // 2), p=0.1).bool().to(x.device)
-        #node_mask = torch.cat([node_mask, node_mask], axis=0)
-        sampled_feature_nodes = features_node[node_mask]
-        
-        _ = get_contrastive_logits_and_labels(sampled_feature_nodes)
-        logits_node_contrastive, labels_node_contrastive = _
-        logits_node_contrastive /= self.contrastive_temperature
-        
-        logits_and_labels = {
-            "node_contrastive": [logits_node_contrastive, labels_node_contrastive],
-        }
+        logits_and_labels = dict()
+        if self.contrastive_type == "node":
+            node_mask = torch.bernoulli(torch.zeros(x.size(0) // 2), p=0.1).bool().to(x.device)
+            node_mask = torch.cat([node_mask, node_mask], axis=0)
+            sampled_feature_nodes = features_node[node_mask]
+            _ = get_contrastive_logits_and_labels(sampled_feature_nodes)
+            logits_node_contrastive, labels_node_contrastive = _
+            logits_node_contrastive /= self.contrastive_temperature
 
+            logits_and_labels["node_contrastive"] =[logits_node_contrastive, labels_node_contrastive]
+
+        elif self.contrastive_type == "graph":
+            sampled_feature_nodes = features_node[node_mask]
+            features_graph = global_mean_pool(features_node, batch)
+            logits = torch.mm(sampled_feature_nodes, features_graph.t()) / self.contrastive_temperature
+            labels = torch.arange(features_graph.size(0)).cuda()
+            
+            logits_and_labels["graph_contrastive"] = [logits, labels]            
+            
+        elif self.contrastive_type == "adj":
+            sampled_feature_nodes = features_node[node_mask]
+            _ = get_contrastive_logits_and_labels(sampled_feature_nodes)
+            logits_node_contrastive, labels_node_contrastive = _
+            logits_node_contrastive /= self.contrastive_temperature
+        
+            logits_and_labels["adj_contrastive"] =[logits_node_contrastive, labels_node_contrastive]
+        
         if self.node_centroids is not None:
             batch_active = self.node_active[dataset_node_idx]
             node_mask = (batch_active > 0)
@@ -182,10 +197,11 @@ class NodeClusteringScheme:
             
             statistics[f"{key}/loss"] = loss.detach()
             statistics[f"{key}/acc"] = acc
-            
-        optim.zero_grad()
-        loss_cum.backward()
-        optim.step()
+        
+        if len(logits_and_labels.keys()) > 0:
+            optim.zero_grad()
+            loss_cum.backward()
+            optim.step()
         
         model.update_ema_encoder()
 

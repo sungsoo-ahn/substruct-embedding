@@ -46,7 +46,7 @@ def main():
     parser.add_argument("--use_euclidean_clustering", action="store_true")
     parser.add_argument("--proto_temperature", type=float, default=0.01)
     parser.add_argument("--ema_rate", type=float, default=0.0)
-    
+    parser.add_argument("--contrastive_type", type=str, default="node")
     parser.add_argument("--use_neptune", action="store_true")
     
     args = parser.parse_args()
@@ -86,9 +86,12 @@ def main():
     elif args.scheme == "node_clustering":
         scheme = NodeClusteringScheme(
             num_clusters=args.num_clusters,
-            use_euclidean_clustering=args.use_euclidean_clustering
+            use_euclidean_clustering=args.use_euclidean_clustering,
             )
-        model = NodeClusteringModel(use_density_rescaling=args.use_density_rescaling)
+        model = NodeClusteringModel(
+            use_density_rescaling=args.use_density_rescaling,
+            contrastive_type=args.contrastive_type,
+            )
         transform = mask_data_twice
         collate_fn = contrastive_collate
 

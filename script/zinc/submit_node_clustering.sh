@@ -15,4 +15,4 @@ srun \
   --no-container-mount-home \
   --container-mounts="/nfs/projects/mbzuai/peterahn/workspace/substruct-embedding:/substruct-embedding" \
   --container-workdir="/substruct-embedding/src" \
-  bash ../script/zinc/node_clustering.sh
+  bash ../script/zinc/node_clustering${1}.sh
