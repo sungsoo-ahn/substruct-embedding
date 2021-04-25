@@ -60,16 +60,18 @@ class NodeClusteringModel(torch.nn.Module):
         return features_graph
     
     def compute_logits_and_labels(
-        self, x, edge_index, edge_attr, batch, dataset_node_idx
+        self, x, edge_index, edge_attr, batch, dataset_node_idx, batch_num_nodes
         ):
         out = self.encoder(x, edge_index, edge_attr)
         out = self.projector(out)
         features_node = torch.nn.functional.normalize(out, p=2, dim=1)
 
         # Subsample nodes for fast computation
-        node_mask = torch.bernoulli(torch.zeros(x.size(0) // 2), p=0.1).bool().to(x.device)
-        node_mask = torch.cat([node_mask, node_mask], axis=0)
-        sampled_feature_nodes = features_node[node_mask]
+        #node_mask = torch.bernoulli(torch.zeros(x.size(0) // 2), p=0.1).bool().to(x.device)
+        #node_mask = torch.cat([node_mask, node_mask], axis=0)
+        node_idxs = (torch.rand(batch_num_nodes.size(0)) * batch_num_nodes.float()).long()
+        node_idxs = batch_num_nodes - node_idxs
+        sampled_feature_nodes = features_node[node_idxs]
         
         _ = get_contrastive_logits_and_labels(sampled_feature_nodes)
         logits_node_contrastive, labels_node_contrastive = _
@@ -167,6 +169,7 @@ class NodeClusteringScheme:
             batch.edge_attr, 
             batch.batch, 
             batch.dataset_node_idx, 
+            batch.batch_num_nodes,
             )
         
         

@@ -27,7 +27,7 @@ def main():
     parser.add_argument("--log_freq", type=float, default=10)
     parser.add_argument("--cluster_freq", type=float, default=1)
 
-    parser.add_argument("--scheme", type=str, default="graph_clustering")
+    parser.add_argument("--scheme", type=str, default="node_clustering")
 
     parser.add_argument("--batch_size", type=int, default=256)
     parser.add_argument("--cluster_batch_size", type=int, default=8192)
@@ -136,9 +136,7 @@ def main():
     )
 
     print("Loading neptune...")
-    run = neptune.init(
-        project="sungsahn0215/substruct-embedding", name="train_embedding", mode=args.neptune_mode
-    )
+    run = neptune.init(project="sungsahn0215/graph-clustering", name="graph_clustering")
     run["parameters"] = vars(args)
     if args.run_tag == "":
         run_tag = run["sys/id"].fetch()
