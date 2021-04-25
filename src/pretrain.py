@@ -47,7 +47,7 @@ def main():
     parser.add_argument("--proto_temperature", type=float, default=0.01)
     parser.add_argument("--ema_rate", type=float, default=0.0)
     
-    parser.add_argument("--neptune_mode", type=str, default="async")
+    parser.add_argument("--use_neptune", action="store_true")
     
     args = parser.parse_args()
 
@@ -135,29 +135,32 @@ def main():
         num_workers=args.num_workers,
     )
 
-    print("Loading neptune...")
-    run = neptune.init(project="sungsahn0215/graph-clustering", name="graph_clustering")
-    run["parameters"] = vars(args)
-    if args.run_tag == "":
-        run_tag = run["sys/id"].fetch()
-    else:
-        run_tag = args.run_tag
-    os.makedirs(f"../resource/result/{run_tag}", exist_ok=True)
+    if args.use_neptune:
+        print("Loading neptune...")
+        run = neptune.init(project="sungsahn0215/graph-clustering", name="graph_clustering")
+        run["parameters"] = vars(args)
+        if args.run_tag == "":
+            run_tag = run["sys/id"].fetch()
+        else:
+            run_tag = args.run_tag
+        os.makedirs(f"../resource/result/{run_tag}", exist_ok=True)
 
     step = 0
     for epoch in range(args.num_epochs):
-        run[f"epoch"].log(epoch)            
+        if args.use_neptune:
+            run[f"epoch"].log(epoch)            
         
         if ((epoch + 1) > args.num_warmup_epochs and (epoch + 1) % args.cluster_freq == 0):
             cluster_statistics = scheme.assign_cluster(cluster_loader, model, device)
-            for key, val in cluster_statistics.items():
-                run[f"cluster/{key}"].log(val)
+            if args.use_neptune:
+                for key, val in cluster_statistics.items():
+                    run[f"cluster/{key}"].log(val)
 
         for batch in loader:
             step += 1
             train_statistics = scheme.train_step(batch, model, optim, device)
 
-            if step % args.log_freq == 0:
+            if step % args.log_freq == 0 and args.use_neptune:
                 for key, val in train_statistics.items():
                     run[f"train/{key}"].log(val)
 
@@ -176,18 +179,21 @@ def main():
                 eval_datasets[name]["test"],
                 device
                 )
-            for key, val in eval_statistics.items():
-                run[f"eval/{name}/{key}"].log(val)
+            if args.use_neptune:
+                for key, val in eval_statistics.items():
+                    run[f"eval/{name}/{key}"].log(val)
 
             eval_acc += eval_statistics["acc"] / len(eval_datasets)
 
-        run[f"eval/total/acc"].log(eval_acc)
+        if args.use_neptune:
+            run[f"eval/total/acc"].log(eval_acc)
         
-        torch.save(
-            model.encoder.state_dict(), f"../resource/result/{run_tag}/model_{epoch:02d}.pt"
-        )
+            torch.save(
+                model.encoder.state_dict(), f"../resource/result/{run_tag}/model_{epoch:02d}.pt"
+            )
 
-    torch.save(model.encoder.state_dict(), f"../resource/result/{run_tag}/model.pt")
+    if args.use_neptune:
+        torch.save(model.encoder.state_dict(), f"../resource/result/{run_tag}/model.pt")
 
     run.stop()
 

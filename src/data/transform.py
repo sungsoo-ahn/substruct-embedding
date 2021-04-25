@@ -45,6 +45,23 @@ def mask_data(data):
     
     return data
 
+def node_mask_data(data0, data1):
+    data0 = data0.clone()
+    data1 = data1.clone()
+    node_mask0 = torch.zeros(data0.x.size(0), dtype=torch.bool)
+    node_mask1 = torch.zeros(data1.x.size(0), dtype=torch.bool)
+    if data0.edge_index.size(1) > 0:
+        edge_idx_idx = random.choice(range(data0.edge_index.size(1)))
+        edge_idx0 = data0.edge_index[0, edge_idx_idx]
+        edge_idx1 = data0.edge_index[1, edge_idx_idx]
+        node_mask0[edge_idx0] = True
+        node_mask1[edge_idx1] = True
+
+    data0.node_mask = node_mask0
+    data1.node_mask = node_mask1
+    
+    return data0, data1
+
 def mask_data_twice(data):
     data0 = Data(
         x=data.x.clone(),
@@ -54,5 +71,7 @@ def mask_data_twice(data):
         dataset_node_idx=data.dataset_node_idx.clone(),
     )
     data1 = mask_data(data)
+    
+    data0, data1 = node_mask_data(data0, data1)
     
     return data0, data1
