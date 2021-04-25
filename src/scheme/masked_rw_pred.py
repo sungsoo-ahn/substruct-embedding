@@ -47,15 +47,18 @@ class MaskedRWPredModel(nn.Module):
         out = self.encoder(batch.x, batch.edge_index, batch.edge_attr)
         
         num_nodes = batch.x.size(0)
-        lstm_x = batch.y.clone()
-        lstm_x[batch.y_mask] = 0
-        pad = torch.zeros(num_nodes, 1, dtype=torch.long)#.cuda()
+        lstm_x = batch.z.clone()
+        lstm_x[batch.z_mask] = 0
+        pad = torch.zeros(num_nodes, 1, dtype=torch.long).cuda()
         lstm_x = torch.cat([pad, lstm_x[:, :-1]], dim=1)
         logits = self.classifier(lstm_x, out)
-        labels = batch.y - 1
+        labels = batch.z - 1
         
-        logits = logits[batch.y_mask]
-        labels = labels[batch.y_mask]
+        #logits = logits[batch.z_mask]
+        #labels = labels[batch.z_mask]
+        
+        logits = logits.view(-1, logits.size(2))
+        labels = labels.view(-1)
         
         return logits, labels
     
@@ -65,7 +68,7 @@ class MaskedRWPredScheme():
      
     def train_step(self, batch, model, optim):
         model.train()
-        batch = batch#.to(0)
+        batch = batch.to(0)
         
         logits, labels = model.compute_logits_and_labels(batch)
         
@@ -77,7 +80,7 @@ class MaskedRWPredScheme():
         optim.step()
         
         statistics = {
-            "loss": loss, "acc": acc, "mask_rate": torch.sum(batch.y_mask) / batch.x.size(0)
+            "loss": loss, "acc": acc, "mask_rate": torch.sum(batch.z_mask) / batch.x.size(0)
             }
         
         return statistics

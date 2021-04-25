@@ -54,7 +54,7 @@ def main():
             )
 
     print("Loading model...")
-    model = model#.cuda()
+    model = model.cuda()
     optim = torch.optim.Adam(
         [param for param in model.parameters() if param.requires_grad], lr=1e-3
         )
@@ -90,18 +90,20 @@ def main():
         if args.use_neptune:
             run[f"epoch"].log(epoch)
 
-        for batch in loader:
+        for batch in tqdm(loader):
             step += 1
             train_statistics = scheme.train_step(batch, model, optim)
             if step % args.log_freq == 0 and args.use_neptune:
                 for key, val in train_statistics.items():
                     run[f"train/{key}"].log(val)
 
-        torch.save(
-            model.encoder.state_dict(), f"../resource/result/{run_tag}/model_{epoch:02d}.pt"
-        )
+        if args.use_neptune:
+            torch.save(
+                model.encoder.state_dict(), f"../resource/result/{run_tag}/model_{epoch:02d}.pt"
+            )
 
-    torch.save(model.encoder.state_dict(), f"../resource/result/{run_tag}/model.pt")
+    if args.use_neptune:
+        torch.save(model.encoder.state_dict(), f"../resource/result/{run_tag}/model.pt")
 
     if args.use_neptune:
         run.stop()

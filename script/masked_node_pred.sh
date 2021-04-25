@@ -8,7 +8,7 @@ echo $MODEL_PATH
 
 python pretrain_label.py \
 --scheme masked_node_pred \
---num_epochs 100 \
+--num_epochs 10 \
 --run_tag $RUN_TAG \
 --use_neptune
 
@@ -18,4 +18,5 @@ do
 	--dataset $DATASET \
 	--model_path $MODEL_PATH \
 	--run_tag $RUN_TAG
+	--num_runs 1
 done
