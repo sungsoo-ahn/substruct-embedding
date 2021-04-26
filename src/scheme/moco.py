@@ -9,14 +9,15 @@ from scheme.util import compute_accuracy, get_contrastive_logits_and_labels, run
 
 
 class MoCoModel(torch.nn.Module):
-    def __init__(self):
+    def __init__(self, pool_type):
         super(MoCoModel, self).__init__()
         self.num_layers = 5
         self.emb_dim = 300
         self.drop_rate = 0.0
         self.temperature = 0.07
-        self.ema_rate = 0.995
+        self.ema_rate = 0.999
         self.criterion = torch.nn.CrossEntropyLoss()
+        self.pool_type = pool_type
     
         self.queue_size = 65536
     
@@ -57,13 +58,14 @@ class MoCoModel(torch.nn.Module):
     @torch.no_grad()
     def dequeue_and_enqueue(self, keys):
         batch_size = keys.size(0)
-        assert self.queue_size % batch_size == 0  # for simplicity
+        #assert self.queue_size % batch_size == 0  # for simplicity
 
         ptr = int(self.queue_ptr)
 
         # replace the keys at ptr (dequeue and enqueue)
-        self.queue[:, ptr:ptr + batch_size] = keys.T
-        ptr = (ptr + batch_size) % self.queue_size  # move pointer
+        next_ptr = min(self.queue_size, ptr + batch_size)
+        self.queue[:, ptr:next_ptr] = keys[:next_ptr-ptr, :].T
+        ptr = next_ptr % self.queue_size  # move pointer
 
         self.queue_ptr[0] = ptr
 
@@ -80,40 +82,40 @@ class MoCoModel(torch.nn.Module):
         batch_size = query_batch.batch_size
         batch_num_nodes = key_batch.batch_num_nodes
         
-        sample_node_indices = (
-            (batch_num_nodes.float() * torch.rand(batch_size).cuda()).long() + 1
-        )
-        sample_node_indices = batch_num_nodes - sample_node_indices
-        
         out = self.encoder(query_batch.x, query_batch.edge_index, query_batch.edge_attr)
-        if "subgraph_mask" in query_batch.keys:
-            out = out[query_batch.subgraph_mask]
-        
-        out = out[sample_node_indices]
         out = self.projector(out)
+        out = self.pool_graphs(out, query_batch)
         query_node_features = torch.nn.functional.normalize(out, p=2, dim=1)
         
         with torch.no_grad():
             self.update_ema_encoder()
             out = self.ema_encoder(query_batch.x, query_batch.edge_index, query_batch.edge_attr)
             out = self.ema_projector(out)
+            out = self.pool_graphs(out, key_batch)
             key_node_features = torch.nn.functional.normalize(out, p=2, dim=1)
             
-        inter_logits = torch.einsum('nc,mc->nm', [query_node_features, key_node_features])
+        inter_logits = torch.einsum('nc,kc->nk', [query_node_features, key_node_features])
         intra_logits =  torch.einsum(
             'nc,ck->nk', [query_node_features, self.queue.clone().detach()]
             )
         
         logits = torch.cat([inter_logits, intra_logits], dim=1)
         logits /= self.temperature
-        labels = sample_node_indices
+        labels = torch.arange(logits.size(0), dtype=torch.long).cuda()
 
-        self.dequeue_and_enqueue(key_node_features[sample_node_indices])
+        self.dequeue_and_enqueue(key_node_features)
         
-        logits_and_labels = {"1_contrastive": [logits, labels]}
+        logits_and_labels = {"contrastive": [logits, labels]}
         
         return logits_and_labels
+
+    def pool_graphs(self, h, batch):
+        if self.pool_type == "mean":
+            out = global_mean_pool(h, batch.batch)
+        elif self.pool_type == "mask":
+            out = h[batch.pool_mask]
         
+        return out
 
 class MoCoScheme:
     def __init__(self):
@@ -135,13 +137,13 @@ class MoCoScheme:
             
             loss_cum += loss
             
-            statistics[f"0_loss/{key}"] = loss.detach()
-            statistics[f"1_acc/{key}"] = acc
+            statistics[f"loss/{key}"] = loss.detach()
+            statistics[f"acc/{key}"] = acc
         
-        statistics[f"0_loss/0_total"] = loss_cum.detach()
+        statistics[f"loss/total"] = loss_cum.detach()
         
         if "subgraph_mask" in batch0.keys:
-            statistics[f"2_stats/0_subgraph_ratio"] = (
+            statistics[f"stats/subgraph_ratio"] = (
                 torch.sum(batch0.subgraph_mask.float()) / batch0.x.size(0)
                 )
         
