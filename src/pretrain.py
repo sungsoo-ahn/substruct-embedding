@@ -22,12 +22,12 @@ import neptune.new as neptune
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", type=str, default="zinc_standard_agent")
-    parser.add_argument("--num_epochs", type=int, default=50)
+    parser.add_argument("--num_epochs", type=int, default=20)
     parser.add_argument("--num_warmup_epochs", type=int, default=1)
     parser.add_argument("--log_freq", type=float, default=10)
     parser.add_argument("--cluster_freq", type=float, default=1)
 
-    parser.add_argument("--scheme", type=str, default="graph_clustering")
+    parser.add_argument("--scheme", type=str, default="node_clustering")
 
     parser.add_argument("--batch_size", type=int, default=256)
     parser.add_argument("--cluster_batch_size", type=int, default=8192)

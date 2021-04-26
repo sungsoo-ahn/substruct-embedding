@@ -227,9 +227,7 @@ def update_proto_lowest(graph_reps, proto, proto_state, decay_ratio=0.7, epsilon
     # update states of prototypes
     mask = (sim == sim.max(1)[0].unsqueeze(-1)).float()
     cnt = mask.sum(0)
-    proto_state.data = (
-        proto_state.data + (cnt != 0).float().data - proto_state.data * (cnt != 0).float().data
-    )
+    proto_state.data = proto_state.data + (cnt != 0).float().data
 
     # update prototypes
     batch_cnt = mask.t() / (cnt.unsqueeze(-1) + epsilon)
@@ -262,6 +260,9 @@ def init_proto_lowest(args, model, proj, loader, device, proto, proto_state):
         proto, proto_state = update_proto_lowest(
             graph_reps_proj, proto, proto_state, decay_ratio=args.decay_ratio
         )
+
+    proto_state[proto_state < 2] = 0
+    proto_state[proto_state > 0] = 1
 
     idx = torch.nonzero(proto_state).squeeze(-1)
     proto_selected = torch.index_select(proto, 0, idx)
@@ -471,7 +472,7 @@ def main():
     )
     parser.add_argument("--dropout_ratio", type=float, default=0, help="dropout ratio (default: 0)")
     parser.add_argument(
-        "--mask_rate", type=float, default=0.3, help="dropout ratio (default: 0.15)"
+        "--mask_rate", type=float, default=0.4, help="dropout ratio (default: 0.15)"
     )
     parser.add_argument(
         "--mask_num", type=int, default=0, help="the number of masked nodes (default: 0)"
@@ -513,7 +514,7 @@ def main():
         "--alpha", type=float, default=1, help="the weight of intra-graph InfoNCE loss"
     )
     parser.add_argument(
-        "--beta", type=float, default=1, help="the weight of inter-graph InfoNCE loss"
+        "--beta", type=float, default=0.1, help="the weight of inter-graph InfoNCE loss"
     )
     parser.add_argument(
         "--gamma", type=float, default=0.1, help="the weight of prototype InfoNCE loss"
@@ -554,8 +555,6 @@ def main():
         graph_reps_proj = proj(graph_reps)
         return graph_reps_proj
 
-    eval_datasets = get_eval_datasets()
-
 
     # set up optimizer
     model_param_group = [
@@ -594,7 +593,8 @@ def main():
     run["epoch/acc/intraNCE"].log(train_intra_acc)
     run["epoch/loss/interNCE"].log(train_inter_loss)
     run["epoch/acc/interNCE"].log(train_inter_acc)
-    
+
+    eval_datasets = get_eval_datasets()
     model.eval()
     proj.eval()
     eval_acc = 0.0
@@ -614,7 +614,10 @@ def main():
 
     model.train()
     proj.train()
-    
+
+    model.eval()
+    proj.eval()
+
     # initialize prototypes and their state according to pretrained representations
     print("Initalize prototypes: layer 1")
     tmp_proto, tmp_proto_state = init_proto_lowest(
@@ -631,6 +634,9 @@ def main():
         proto[i] = tmp_proto
         proto_state[i] = tmp_proto_state
         proto_connection.append(tmp_proto_connection)
+
+    model.train()
+    proj.train()
 
     for epoch in range(1, args.epochs + 1):
         print("====epoch " + str(epoch))
