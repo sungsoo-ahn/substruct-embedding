@@ -1,6 +1,6 @@
 #!/bin/bash
 
-RUN_TAG="ncr0"
+RUN_TAG="ncr1"
 MODEL_PATH="../resource/result/${RUN_TAG}/model.pt"
 
 python pretrain.py \
