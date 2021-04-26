@@ -89,15 +89,12 @@ def main():
 
     parser.add_argument("--run_tag", type=str, default="")
     parser.add_argument("--num_runs", type=int, default=10)
-    parser.add_argument("--neptune_mode", type=str, default="sync")
 
     args = parser.parse_args()
 
     device = torch.device(0)
 
-    run = neptune.init(
-        project="sungsahn0215/substruct-embedding", name="finetune", mode=args.neptune_mode
-    )
+    run = neptune.init(project="sungsahn0215/finetune", name=args.dataset)
     run["parameters"] = vars(args)
 
     best_vali_acc_list = []

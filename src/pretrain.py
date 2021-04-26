@@ -9,20 +9,18 @@ import torch_geometric
 from model import NodeEncoder
 from data.dataset import MoleculeDataset
 from data.splitter import random_split
-from data.transform import mask_data_twice
+from data.transform import mask_samepool, mask_diffpool
 from data.collate import contrastive_collate
-from scheme.graph_clustering import GraphClusteringScheme, GraphClusteringModel
-from scheme.graph_clustering_noaug import GraphClusteringNoAugScheme, GraphClusteringNoAugModel
-from scheme.node_clustering import NodeClusteringScheme, NodeClusteringModel
-from scheme.node_graph_clustering import NodeGraphClusteringScheme, NodeGraphClusteringModel
+from scheme.node_contrastive import NodeContrastiveScheme, NodeContrastiveModel
 from evaluate_knn import get_eval_datasets, evaluate_knn
 
 import neptune.new as neptune
+from tqdm import tqdm
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", type=str, default="zinc_standard_agent")
-    parser.add_argument("--num_epochs", type=int, default=50)
+    parser.add_argument("--num_epochs", type=int, default=20)
     parser.add_argument("--num_warmup_epochs", type=int, default=1)
     parser.add_argument("--log_freq", type=float, default=10)
     parser.add_argument("--cluster_freq", type=float, default=1)
@@ -41,12 +39,11 @@ def main():
 
     parser.add_argument("--run_tag", type=str, default="")
 
-    parser.add_argument("--num_clusters", type=int, default=100000)
-    parser.add_argument("--use_density_rescaling", action="store_true")
-    parser.add_argument("--use_euclidean_clustering", action="store_true")
-    parser.add_argument("--proto_temperature", type=float, default=0.01)
-    parser.add_argument("--ema_rate", type=float, default=0.0)
-    parser.add_argument("--contrastive_type", type=str, default="node")
+    parser.add_argument("--transform_type", type=str, default="once_same")
+    parser.add_argument("--mask_rate", type=float, default=0.0)
+    parser.add_argument("--pool_rate", type=float, default=0.1)
+    parser.add_argument("--use_linear_projector", action="store_true")
+    
     parser.add_argument("--use_neptune", action="store_true")
     
     args = parser.parse_args()
@@ -57,52 +54,14 @@ def main():
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(0)
 
-    if args.scheme == "graph_clustering":
-        scheme = GraphClusteringScheme(
-            num_clusters=args.num_clusters, 
-            use_euclidean_clustering=args.use_euclidean_clustering,
-            )
-        model = GraphClusteringModel(
-            use_density_rescaling=args.use_density_rescaling,             
-            proto_temperature=args.proto_temperature,
-            ema_rate=args.ema_rate,
-            )
-        transform = mask_data_twice
-        collate_fn = contrastive_collate
-    
-    if args.scheme == "graph_clustering_noaug":
-        scheme = GraphClusteringNoAugScheme(
-            num_clusters=args.num_clusters, 
-            use_euclidean_clustering=args.use_euclidean_clustering,
-            )
-        model = GraphClusteringNoAugModel(
-            use_density_rescaling=args.use_density_rescaling,             
-            proto_temperature=args.proto_temperature,
-            ema_rate=args.ema_rate,
-            )
-        transform = mask_data_twice
-        collate_fn = contrastive_collate
-
-    elif args.scheme == "node_clustering":
-        scheme = NodeClusteringScheme(
-            num_clusters=args.num_clusters,
-            use_euclidean_clustering=args.use_euclidean_clustering,
-            )
-        model = NodeClusteringModel(
-            use_density_rescaling=args.use_density_rescaling,
-            contrastive_type=args.contrastive_type,
-            )
-        transform = mask_data_twice
-        collate_fn = contrastive_collate
-
-    elif args.scheme == "node_graph_clustering":
-        scheme = NodeGraphClusteringScheme(
-            num_clusters=args.num_clusters,
-            use_euclidean_clustering=args.use_euclidean_clustering
-            )
-        model = NodeGraphClusteringModel(use_density_rescaling=args.use_density_rescaling)
-        transform = mask_data_twice
-        collate_fn = contrastive_collate
+    scheme = NodeContrastiveScheme()
+    model = NodeContrastiveModel(use_linear_projector=args.use_linear_projector)
+    if args.transform_type == "once_same":
+        transform = lambda data: mask_samepool(data, args.mask_rate, args.pool_rate)
+    elif args.transform_type == "once_diff":
+        transform = lambda data: mask_diffpool(data, args.mask_rate, args.pool_rate)
+        
+    collate_fn = contrastive_collate
 
     print("Loading model...")
     model = model.to(device)
@@ -125,19 +84,6 @@ def main():
         collate_fn=collate_fn,
     )
 
-    print("Loading cluster dataset...")
-    cluster_dataset = MoleculeDataset(
-        "../resource/dataset/" + args.dataset,
-        dataset=args.dataset,
-        )
-
-    cluster_loader = torch_geometric.data.DataLoader(
-        cluster_dataset,
-        batch_size=args.cluster_batch_size,
-        shuffle=True,
-        num_workers=args.num_workers,
-    )
-
     if args.use_neptune:
         print("Loading neptune...")
         run = neptune.init(project="sungsahn0215/graph-clustering", name="graph_clustering")
@@ -153,13 +99,7 @@ def main():
         if args.use_neptune:
             run[f"epoch"].log(epoch)            
         
-        if ((epoch + 1) > args.num_warmup_epochs and (epoch + 1) % args.cluster_freq == 0):
-            cluster_statistics = scheme.assign_cluster(cluster_loader, model, device)
-            if args.use_neptune:
-                for key, val in cluster_statistics.items():
-                    run[f"cluster/{key}"].log(val)
-
-        for batch in loader:
+        for batch in tqdm(loader):
             step += 1
             train_statistics = scheme.train_step(batch, model, optim, device)
 
@@ -177,7 +117,7 @@ def main():
         eval_acc = 0.0
         for name in eval_datasets:
             eval_statistics = evaluate_knn(
-                model.compute_ema_features_graph,
+                model.compute_graph_features,
                 eval_datasets[name]["train"],
                 eval_datasets[name]["test"],
                 device
