@@ -9,7 +9,7 @@ import torch_geometric
 from model import NodeEncoder
 from data.dataset import MoleculeDataset
 from data.splitter import random_split
-from data.transform import mask_data_twice
+from data.transform import mask_data_twice, realmask_data_twice
 from data.collate import contrastive_collate
 from scheme.graph_clustering import GraphClusteringScheme, GraphClusteringModel
 from scheme.graph_clustering_noaug import GraphClusteringNoAugScheme, GraphClusteringNoAugModel
@@ -90,6 +90,15 @@ def main():
             )
         model = NodeClusteringModel(use_density_rescaling=args.use_density_rescaling)
         transform = mask_data_twice
+        collate_fn = contrastive_collate
+
+    elif args.scheme == "node_clustering_realmask":
+        scheme = NodeClusteringScheme(
+            num_clusters=args.num_clusters,
+            use_euclidean_clustering=args.use_euclidean_clustering
+            )
+        model = NodeClusteringModel(use_density_rescaling=args.use_density_rescaling)
+        transform = realmask_data_twice
         collate_fn = contrastive_collate
 
     elif args.scheme == "node_graph_clustering":
