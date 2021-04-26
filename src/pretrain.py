@@ -20,8 +20,7 @@ import neptune.new as neptune
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", type=str, default="zinc_standard_agent")
-    parser.add_argument("--num_epochs", type=int, default=20)
-    parser.add_argument("--num_warmup_epochs", type=int, default=1)
+    parser.add_argument("--num_epochs", type=int, default=100)
     parser.add_argument("--log_freq", type=float, default=10)
 
     parser.add_argument("--scheme", type=str, default="mask_contrast")
