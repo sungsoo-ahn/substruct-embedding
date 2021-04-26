@@ -99,7 +99,6 @@ def main():
         for batch in loader:
             step += 1
             train_statistics = scheme.train_step(batch, model, optim)
-            print(train_statistics)
             if step % args.log_freq == 0:
                 for key, val in train_statistics.items():
                     if args.use_neptune:

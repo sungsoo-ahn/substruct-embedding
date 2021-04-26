@@ -8,6 +8,7 @@ echo $MODEL_PATH
 
 python pretrain.py \
 --use_mlp \
+--use_neptune \
 --run_tag $RUN_TAG
 
 python finetune.py \

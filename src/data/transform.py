@@ -15,7 +15,7 @@ def mask_data(data, atom_bincount=None, mask_rate=0.15):
     
     num_nodes = data.x.size(0)
     num_mask_nodes = max(int(mask_rate * num_nodes), 1)
-    mask_nodes = np.random.choice(range(num_nodes), replace=False, p=weights).tolist()
+    mask_nodes = np.random.choice(range(num_nodes), size=num_mask_nodes, replace=False, p=weights).tolist()
     #list(sorted(random.sample(range(num_nodes), num_mask_nodes)))    
     
     mask = torch.zeros(num_nodes, dtype=torch.bool)
