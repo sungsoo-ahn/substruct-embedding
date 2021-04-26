@@ -67,6 +67,8 @@ class MoleculeDataset(InMemoryDataset):
             "clintox": 2,
         }.get(dataset, 0)
         
+        self.atom_bincount = torch.bincount(self.data.x[:1000000, 0]).numpy()
+        #self.atom_bincount /= torch.sum(self.atom_bincount)
 
     def get(self, idx):
         data = Data()
@@ -76,11 +78,6 @@ class MoleculeDataset(InMemoryDataset):
             s[data.__cat_dim__(key, item)] = slice(slices[idx], slices[idx + 1])
             data[key] = item[s]
         
-            if key == "x":
-                data.dataset_node_idx = torch.arange(slices[idx], slices[idx + 1])
-        
-        data.dataset_graph_idx = torch.LongTensor([idx])
-            
         return data
 
     @property
