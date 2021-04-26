@@ -57,7 +57,7 @@ def mask_data(data):
 
 def realmask_data(data):
     x, edge_index, edge_attr = realmask_nodes(
-        data.x.clone(), data.edge_index.clone(), data.edge_attr.clone(), mask_rate=0.1
+        data.x.clone(), data.edge_index.clone(), data.edge_attr.clone(), mask_rate=0.3
     )
 
     data = Data(

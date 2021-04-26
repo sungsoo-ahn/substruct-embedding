@@ -146,7 +146,7 @@ def main():
 
     print("Loading neptune...")
     run = neptune.init(
-        project="sungsahn0215/substruct-embedding", name="train_embedding", mode=args.neptune_mode
+        project="sungsahn0215/ssg", name="train_embedding", mode=args.neptune_mode
     )
     run["parameters"] = vars(args)
     if args.run_tag == "":

@@ -578,7 +578,7 @@ def main():
 
     print("Loading neptune...")
     run = neptune.init(
-        project="sungsahn0215/substruct-embedding", name="train_embedding"
+        project="sungsahn0215/ssg", name="train_embedding"
     )
     run["parameters"] = vars(args)
     run_tag = "graph_log"

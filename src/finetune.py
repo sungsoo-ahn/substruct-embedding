@@ -95,7 +95,7 @@ def main():
     device = torch.device(0)
 
     run = neptune.init(
-        project="sungsahn0215/finetune", name="finetune"
+        project="sungsahn0215/ssg", name="finetune"
     )
     run["parameters"] = vars(args)
 
