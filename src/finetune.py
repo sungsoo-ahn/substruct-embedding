@@ -89,7 +89,7 @@ def main():
     parser.add_argument("--lr", type=float, default=1e-3)
 
     parser.add_argument("--run_tag", type=str, default="")
-    parser.add_argument("--num_runs", type=int, default=10)
+    parser.add_argument("--num_runs", type=int, default=5)
     parser.add_argument("--neptune_mode", type=str, default="sync")
 
     args = parser.parse_args()
@@ -151,15 +151,26 @@ def main():
             drop_rate=args.drop_rate,
         )
         if not args.model_path == "":
-            model.encoder.load_state_dict(torch.load(args.model_path))
-
+            state_dict = torch.load(args.model_path)
+            new_state_dict = dict()
+            for key in state_dict:
+                if "gnns" in key:
+                    new_state_dict[key.replace("gnns", "layers")] = state_dict[key]
+                else:
+                    new_state_dict[key] =  state_dict[key]
+                
+            model.encoder.load_state_dict(new_state_dict)
+            
         model.to(device)
 
         optimizer = optim.Adam(model.parameters(), lr=args.lr)
-
+        scheduler = StepLR(optimizer, step_size = 30, gamma=0.3)
+        
         best_vali_acc = 0.0
         best_test_acc = 0.0
         for epoch in range(args.num_epochs):
+            scheduler.step()
+            
             train_statistics = train(model, optimizer, train_loader, device)
             for key, val in train_statistics.items():
                 run[f"train/{key}/run{runseed}"].log(val)
