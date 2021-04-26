@@ -11,13 +11,7 @@ from data.dataset import MoleculeDataset
 from data.splitter import random_split
 from data.transform import mask_data_twice, mask_data
 from data.collate import collate, collate_cat
-from scheme.graph_clustering import GraphClusteringScheme, GraphClusteringModel
 from scheme.node_clustering import NodeClusteringScheme, NodeClusteringModel
-from scheme.node_graph_clustering import NodeGraphClusteringScheme, NodeGraphClusteringModel
-from scheme.clustering_bottleneck import ClusteringBottleneckScheme, ClusteringBottleneckModel
-from scheme.graph_clustering_noaug import GraphClusteringNoAugScheme, GraphClusteringNoAugModel
-from scheme.node_clustering_noaug import NodeClusteringNoAugScheme, NodeClusteringNoAugModel
-from scheme.node_graph_clustering_noaug import NodeGraphClusteringNoAugScheme, NodeGraphClusteringNoAugModel
 from evaluate_knn import get_eval_datasets, evaluate_knn
 
 import neptune.new as neptune
@@ -45,11 +39,10 @@ def main():
 
     parser.add_argument("--run_tag", type=str, default="")
 
-    parser.add_argument("--num_clusters", type=int, default=50000)
+    parser.add_argument("--num_clusters", type=int, default=100000)
     parser.add_argument("--use_linear_projection", action="store_true")
     parser.add_argument("--proto_temperature", type=float, default=0.01)
-    parser.add_argument("--ema_rate", type=float, default=0.0)
-
+    parser.add_argument("--mask_rate", type=float, default=0.0)
     parser.add_argument("--neptune_mode", type=str, default="async")
 
     args = parser.parse_args()
@@ -59,47 +52,11 @@ def main():
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(0)
 
-    if args.scheme == "graph_clustering":
-        scheme = GraphClusteringScheme()
-        model = GraphClusteringModel()
-        transform = mask_data_twice
-        collate_fn = collate_cat
-
-    elif args.scheme == "node_clustering":
-        scheme = NodeClusteringScheme(num_clusters=args.num_clusters,)
+    if args.scheme == "node_clustering":
+        scheme = NodeClusteringScheme(num_clusters=args.num_clusters)
         model = NodeClusteringModel(use_linear_projection=args.use_linear_projection)
-        transform = mask_data_twice
+        transform = lambda data: mask_data_twice(data, mask_rate=args.mask_rate)
         collate_fn = collate_cat
-
-    elif args.scheme == "node_graph_clustering":
-        scheme = NodeGraphClusteringScheme(num_clusters=args.num_clusters,)
-        model = NodeGraphClusteringModel(use_linear_projection=args.use_linear_projection)
-        transform = mask_data_twice
-        collate_fn = collate_cat
-
-    elif args.scheme == "clustering_bottleneck":
-        scheme = ClusteringBottleneckScheme(num_clusters=args.num_clusters,)
-        model = ClusteringBottleneckModel(use_linear_projection=args.use_linear_projection)
-        transform = mask_data_twice
-        collate_fn = collate_cat
-
-    elif args.scheme == "graph_clustering_noaug":
-        scheme = GraphClusteringNoAugScheme(num_clusters=args.num_clusters)
-        model = GraphClusteringNoAugModel(use_linear_projection=args.use_linear_projection)
-        transform = mask_data
-        collate_fn = collate
-
-    elif args.scheme == "node_clustering_noaug":
-        scheme = NodeClusteringNoAugScheme(num_clusters=args.num_clusters)
-        model = NodeClusteringNoAugModel(use_linear_projection=args.use_linear_projection)
-        transform = mask_data
-        collate_fn = collate
-
-    elif args.scheme == "node_graph_clustering_noaug":
-        scheme = NodeGraphClusteringNoAugScheme(num_clusters=args.num_clusters)
-        model = NodeGraphClusteringNoAugModel(use_linear_projection=args.use_linear_projection)
-        transform = mask_data
-        collate_fn = collate
 
     print("Loading model...")
     model = model.cuda()
@@ -121,8 +78,7 @@ def main():
     )
 
     print("Loading cluster dataset...")
-    cluster_dataset = MoleculeDataset("../resource/dataset/" + args.dataset, dataset=args.dataset,)
-
+    cluster_dataset = MoleculeDataset("../resource/dataset/" + args.dataset, dataset=args.dataset)
     cluster_loader = torch_geometric.data.DataLoader(
         cluster_dataset,
         batch_size=args.cluster_batch_size,
