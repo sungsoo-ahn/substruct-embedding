@@ -89,6 +89,7 @@ def main():
 
     parser.add_argument("--run_tag", type=str, default="")
     parser.add_argument("--num_runs", type=int, default=5)
+    parser.add_argument("--eval_train", action="store_true")
 
     args = parser.parse_args()
 
@@ -151,8 +152,11 @@ def main():
                 new_state_dict = dict()
                 for key in state_dict:
                     if "gnns" in key:
-                        key = key.replace("gnns", "layers")
-                    new_state_dict[key] = state_dict[key]
+                        new_key = key.replace("gnns", "layers")
+                    else:
+                        new_key = key
+                        
+                    new_state_dict[new_key] = state_dict[key]
 
                 model.encoder.load_state_dict(new_state_dict)
 
@@ -169,6 +173,12 @@ def main():
                     run[f"{dataset_name}/train/{key}/run{runseed}"].log(val)
 
                 scheduler.step()
+
+                if args.eval_train:
+                    train_statistics = evaluate(model, vali_loader, device)
+                    for key, val in train_statistics.items():
+                        run[f"{dataset_name}/train/{key}/run{runseed}"].log(val)
+
 
                 vali_statistics = evaluate(model, vali_loader, device)
                 for key, val in vali_statistics.items():
