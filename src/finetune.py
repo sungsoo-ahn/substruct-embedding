@@ -154,7 +154,7 @@ def main():
                         key = key.replace("gnns", "layers")
                     new_state_dict[key] = state_dict[key]
 
-                model.encoder.load_state_dict()
+                model.encoder.load_state_dict(new_state_dict)
 
             model.to(device)
 
