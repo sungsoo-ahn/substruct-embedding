@@ -1,7 +1,7 @@
 #!/bin/bash
 
 RUN_TAG=$1
-MODEL_PATH="../resource/model/${RUN_TAG}.pt"
+MODEL_PATH="../resource/model/${RUN_TAG}.pth"
 
 echo $RUN_TAG
 echo $MODEL_PATH
