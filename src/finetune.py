@@ -147,7 +147,7 @@ def main():
                 drop_rate=args.drop_rate,
             )
             if not args.model_path == "":
-                model.encoder.load_state_dict(torch.load(args.model_path))
+                model.gnn.load_state_dict(torch.load(args.model_path))
 
             model.to(device)
 

@@ -11,7 +11,7 @@ from data.dataset import MoleculeDataset
 from data.splitter import random_split
 from data.transform import mask_data
 from data.collate import collate
-from scheme.mask_contrast import MaskContrastModel, MaskContrastScheme
+from scheme.mask_contrast import MaskContrastModel, MaskFullContrastModel, MaskContrastScheme
 from evaluate_knn import get_eval_datasets, evaluate_knn
 
 import neptune.new as neptune
@@ -33,12 +33,12 @@ def main():
     parser.add_argument("--drop_rate", type=float, default=0.0)
 
     parser.add_argument("--lr", type=float, default=1e-3)
-
     parser.add_argument("--run_tag", type=str, default="")
-
     parser.add_argument("--use_neptune", action="store_true")
+    
     parser.add_argument("--use_mlp", action="store_true")
     parser.add_argument("--use_reweight", action="store_true")
+    parser.add_argument("--mask_rate", type=float, default=0.15)
     
     args = parser.parse_args()
 
@@ -47,20 +47,24 @@ def main():
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(0)
 
-    if args.scheme == "mask_pred":
-        scheme = MaskPredScheme()
-        model = MaskPredModel()
-    elif args.scheme == "mask_contrast":
+    if args.scheme == "mask_contrast":
         scheme = MaskContrastScheme()
         model = MaskContrastModel(use_mlp=args.use_mlp)
-    
+    elif args.scheme == "mask_full_contrast":
+        scheme = MaskContrastScheme()
+        model = MaskFullContrastModel(use_mlp=args.use_mlp)
+        
     if args.use_reweight:
         print("Loading dataset...")
         dataset = MoleculeDataset("../resource/dataset/" + args.dataset, dataset=args.dataset)
-        transform = lambda data: mask_data(data, atom_bincount=dataset.atom_bincount)
+        transform = lambda data: mask_data(
+            data, atom_bincount=dataset.atom_bincount, mask_rate=args.mask_rate
+            )
     else:
         transform = mask_data
+        
     collate_fn = collate
+    
 
     print("Loading model...")
     model = model.cuda()
