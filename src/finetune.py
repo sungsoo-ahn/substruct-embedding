@@ -147,7 +147,14 @@ def main():
                 drop_rate=args.drop_rate,
             )
             if not args.model_path == "":
-                model.encoder.load_state_dict(torch.load(args.model_path))
+                state_dict = torch.load(args.model_path)
+                new_state_dict = dict()
+                for key in state_dict:
+                    if "gnns" in key:
+                        key = key.replace("gnns", "layers")
+                    new_state_dict[key] = state_dict[key]
+
+                model.encoder.load_state_dict()
 
             model.to(device)
 
