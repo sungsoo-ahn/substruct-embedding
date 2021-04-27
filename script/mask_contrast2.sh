@@ -7,8 +7,9 @@ echo $RUN_TAG
 echo $MODEL_PATH
 
 python pretrain.py \
---use_reweight \
 --use_neptune \
+--scheme mask_contrast \
+--mask_rate 0.45 \
 --run_tag $RUN_TAG
 
 python finetune.py \
