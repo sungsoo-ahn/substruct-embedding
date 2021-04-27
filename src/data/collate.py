@@ -4,43 +4,36 @@ from torch_geometric.data import Data
 def collate(data_list):
     keys = [set(data.keys) for data in data_list]
     keys = list(set.union(*keys))
+    assert 'batch' not in keys
 
     batch = Data()
+
     for key in keys:
         batch[key] = []
-
     batch.batch = []
-    batch.batch_num_nodes = []
-    batch.batch_size = len(data_list)
-    batch.sinkhorn_mask = []
-    
-    cumsum_node = 0
-    max_num_nodes = max([data.x.size(0) for data in data_list])
-    for i, data in enumerate(data_list):
-        num_nodes = data.x.size(0)
-        batch.batch.append(torch.full((num_nodes,), i, dtype=torch.long))
-        batch.batch_num_nodes.append(torch.LongTensor([num_nodes]))
-        
-        sinkhorn_mask = torch.zeros(max_num_nodes, dtype=torch.bool)
-        sinkhorn_mask[:num_nodes] = True
-        batch.sinkhorn_mask.append(sinkhorn_mask)
-        
-        for key in keys:
-            item = data[key]
-            if key in ["edge_index"]:
-                item = item + cumsum_node
 
+    cumsum_node = 0
+    cumsum_edge = 0
+
+    for i, data in enumerate(data_list):
+        num_nodes = data.num_nodes
+        batch.batch.append(torch.full((num_nodes, ), i, dtype=torch.long))
+        for key in data.keys:
+            item = data[key]
+            if key == 'edge_index':
+                item = item + cumsum_node
             batch[key].append(item)
 
         cumsum_node += num_nodes
+        cumsum_edge += data.edge_index.shape[1]
 
-    batch.batch = torch.cat(batch.batch, dim=-1)
-    batch.batch_num_nodes = torch.LongTensor(batch.batch_num_nodes)
-    
     for key in keys:
-        batch[key] = torch.cat(batch[key], dim=data_list[0].__cat_dim__(key, batch[key][0]))
+        batch[key] = torch.cat(
+            batch[key], dim=data_list[0].cat_dim(key, batch[key][0]))
     
-    return batch.contiguous()    
+    batch.batch = torch.cat(batch.batch, dim=-1)
+    
+    return batch.contiguous()
 
 def collate_twice(data_list):
     data_list0, data_list1 = map(list, zip(*data_list))

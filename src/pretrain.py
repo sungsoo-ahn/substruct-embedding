@@ -6,15 +6,21 @@ import numpy as np
 import torch
 import torch_geometric
 
-from model import NodeEncoder
 from data.dataset import MoleculeDataset
 from data.splitter import random_split
-from data.transform import mask_data
-from data.collate import collate
-from scheme.mask_contrast import MaskContrastModel, MaskFullContrastModel, MaskContrastScheme
+from data.transform import mask_data, double_mask_data
+from data.collate import collate, collate_cat
+from scheme.mask_contrast import (
+    MaskContrastModel,
+    MaskFullContrastModel,
+    MaskBalancedContrastModel,
+    MaskContrastScheme,
+)
 from evaluate_knn import get_eval_datasets, evaluate_knn
 
 import neptune.new as neptune
+
+from tqdm import tqdm
 
 
 def main():
@@ -35,11 +41,12 @@ def main():
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--run_tag", type=str, default="")
     parser.add_argument("--use_neptune", action="store_true")
-    
-    parser.add_argument("--use_mlp", action="store_true")
-    parser.add_argument("--use_reweight", action="store_true")
+
     parser.add_argument("--mask_rate", type=float, default=0.15)
-    
+    parser.add_argument("--balance_k", type=int, default=100)
+    parser.add_argument("--use_double_mask", action="store_true")
+
+
     args = parser.parse_args()
 
     torch.manual_seed(0)
@@ -49,22 +56,24 @@ def main():
 
     if args.scheme == "mask_contrast":
         scheme = MaskContrastScheme()
-        model = MaskContrastModel(use_mlp=args.use_mlp)
+        model = MaskContrastModel()
+        
     elif args.scheme == "mask_full_contrast":
         scheme = MaskContrastScheme()
-        model = MaskFullContrastModel(use_mlp=args.use_mlp)
+        model = MaskFullContrastModel()
         
-    if args.use_reweight:
-        print("Loading dataset...")
-        dataset = MoleculeDataset("../resource/dataset/" + args.dataset, dataset=args.dataset)
-        transform = lambda data: mask_data(
-            data, atom_bincount=dataset.atom_bincount, mask_rate=args.mask_rate
-            )
+    elif args.scheme == "mask_balanced_contrast":
+        scheme = MaskContrastScheme()
+        model = MaskBalancedContrastModel(balance_k=args.balance_k)
+                
+    if not args.use_double_mask:
+        transform = lambda data: mask_data(data, mask_rate=args.mask_rate)
+        collate_fn = collate
     else:
-        transform = mask_data
-        
-    collate_fn = collate
-    
+        transform = lambda data: double_mask_data(data, mask_rate=args.mask_rate)
+        collate_fn = collate_cat
+        args.batch_size = args.batch_size // 2
+
 
     print("Loading model...")
     model = model.cuda()
@@ -76,7 +85,7 @@ def main():
     dataset = MoleculeDataset(
         "../resource/dataset/" + args.dataset, dataset=args.dataset, transform=transform,
     )
-    
+
     loader = torch.utils.data.DataLoader(
         dataset,
         batch_size=args.batch_size,
@@ -100,7 +109,7 @@ def main():
         if args.use_neptune:
             run[f"epoch"].log(epoch)
 
-        for batch in loader:
+        for batch in tqdm(loader):
             step += 1
             train_statistics = scheme.train_step(batch, model, optim)
             if step % args.log_freq == 0:
@@ -109,10 +118,12 @@ def main():
                         run[f"train/{key}"].log(val)
 
         if args.use_neptune:
-            torch.save(model.encoder.state_dict(), f"../resource/result/{run_tag}/model_{epoch:02d}.pt")
+            torch.save(
+                model.state_dict(), f"../resource/result/{run_tag}/model_{epoch:02d}.pt"
+            )
 
     if args.use_neptune:
-        torch.save(model.encoder.state_dict(), f"../resource/result/{run_tag}/model.pt")
+        torch.save(model.state_dict(), f"../resource/result/{run_tag}/model.pt")
         run.stop()
 
 

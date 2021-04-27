@@ -11,7 +11,7 @@ from torch_geometric.data import DataLoader
 
 from sklearn.neighbors import KNeighborsClassifier
 
-from model import GraphEncoder
+from model import GNN
 from data.dataset import MoleculeDataset
 from data.splitter import scaffold_split
 from torch_geometric.nn import global_mean_pool
@@ -84,71 +84,3 @@ def get_eval_datasets(names=None):
         datasets[name] = {"train": train_dataset, "test": test_dataset}
     
     return datasets
-
-def main():
-    # Training settings
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", type=str, default="tox21")
-    parser.add_argument("--model_path", type=str, default="")
-
-    parser.add_argument("--num_epochs", type=int, default=100)
-
-    parser.add_argument("--batch_size", type=int, default=1024)
-    parser.add_argument("--num_workers", type=int, default=0)
-
-    parser.add_argument("--num_layers", type=int, default=5)
-    parser.add_argument("--emb_dim", type=int, default=300)
-    parser.add_argument("--drop_rate", type=float, default=0.5)
-
-    parser.add_argument("--lr", type=float, default=1e-3)
-
-    parser.add_argument("--run_tag", type=str, default="")
-    parser.add_argument("--num_runs", type=int, default=10)
-    args = parser.parse_args()
-
-    device = torch.device(0)
-
-    model = GraphEncoder(
-        num_layers=args.num_layers, emb_dim=args.emb_dim, drop_rate=args.drop_rate,
-    )
-    if not args.model_path == "":
-        model.load_state_dict(torch.load(args.model_path))
-
-    model.to(device)
-
-    torch.manual_seed(0)
-    np.random.seed(0)
-    torch.cuda.manual_seed_all(0)
-
-    datasets = get_eval_datasets()
-    for name in datasets:
-        statistics = evaluate_knn(
-            model, datasets[name]["train"], datasets[name]["test"], device
-            )
-        acc = statistics["acc"]
-        print(f"{name} accuracy: {acc}")
-
-if __name__ == "__main__":
-    main()
-    
-"""
-{'acc': 0.6445872773245684}
-{'acc': 0.660085169663377}
-{'acc': 0.5209195128150834}
-{'acc': 0.7462180490349504}
-{'acc': 0.5486593364197532}
-{'acc': 0.5525562127338279}
-{'acc': 0.5888277434529402}
-{'acc': 0.5086604629340007}
-"""
-
-"""
-{'acc': 0.6702627560789853}
-{'acc': 0.6692771200679812}
-{'acc': 0.5384504556925603}
-{'acc': 0.767866458007303}
-{'acc': 0.6362847222222223}
-{'acc': 0.5698420844776477}
-{'acc': 0.5869091210072744}
-{'acc': 0.5804395613943627}
-"""

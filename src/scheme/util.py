@@ -1,5 +1,4 @@
 import torch
-import faiss
 import numpy as np
 
 def compute_accuracy(pred, target):

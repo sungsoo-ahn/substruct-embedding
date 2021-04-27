@@ -2,6 +2,7 @@ import argparse
 import numpy as np
 from tqdm import tqdm
 from sklearn.metrics import roc_auc_score
+import pandas as pd
 import neptune.new as neptune
 
 import torch
@@ -10,7 +11,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch_geometric.data import DataLoader
 
-from model import GraphEncoderWithHead
+from model import GNN_graphpred
 from data.dataset import MoleculeDataset
 from data.splitter import scaffold_split
 
@@ -24,7 +25,7 @@ def train(model, optimizer, loader, device):
         batch = batch.to(device)
         pred = model(batch.x, batch.edge_index, batch.edge_attr, batch.batch)
         y = batch.y.view(pred.shape).to(torch.float64)
-
+        
         # Whether y is non-null or not.
         is_valid = y ** 2 > 0
         # Loss matrix
@@ -109,9 +110,13 @@ def main():
             torch.cuda.manual_seed_all(runseed)
 
             dataset = MoleculeDataset("../resource/dataset/" + dataset_name, dataset=dataset_name)
+            smiles_list = pd.read_csv(
+                '../resource/dataset/' + dataset_name + '/processed/smiles.csv', header=None
+                )[0].tolist()
+        
             train_dataset, valid_dataset, test_dataset = scaffold_split(
                 dataset,
-                dataset.smiles_list,
+                smiles_list,
                 null_value=0,
                 frac_train=0.8,
                 frac_valid=0.1,
@@ -139,12 +144,11 @@ def main():
                 "clintox": 2,
             }.get(dataset_name)
 
-            model = GraphEncoderWithHead(
-                num_head_layers=1,
-                head_dim=num_tasks,
-                num_encoder_layers=args.num_layers,
+            model = GNN_graphpred(
+                num_layer=args.num_layers, 
                 emb_dim=args.emb_dim,
-                drop_rate=args.drop_rate,
+                num_tasks=num_tasks,
+                drop_ratio=args.drop_rate,
             )
             if not args.model_path == "":
                 model.gnn.load_state_dict(torch.load(args.model_path))

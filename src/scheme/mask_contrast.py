@@ -3,11 +3,11 @@ import numpy as np
 import torch
 from torch_geometric.nn import global_mean_pool
 
-from model import NodeEncoder
+from model import GNN
 from scheme.util import compute_accuracy
 
 class MaskContrastModel(torch.nn.Module):
-    def __init__(self, use_mlp):
+    def __init__(self):
         super(MaskContrastModel, self).__init__()
         self.num_layers = 5
         self.emb_dim = 300
@@ -15,16 +15,13 @@ class MaskContrastModel(torch.nn.Module):
         self.temperature = 0.1
         self.criterion = torch.nn.CrossEntropyLoss()
 
-        self.encoder = NodeEncoder(self.num_layers, self.emb_dim, self.drop_rate)
-        if use_mlp:
-            self.projector = torch.nn.Sequential(
-                torch.nn.Linear(self.emb_dim, self.emb_dim),
-                torch.nn.ReLU(),
-                torch.nn.Linear(self.emb_dim, self.emb_dim)
-            )            
-        else:
-            self.projector = torch.nn.Linear(self.emb_dim, self.emb_dim)
-
+        self.encoder = GNN(self.num_layers, self.emb_dim, drop_ratio=self.drop_rate)
+        self.projector = torch.nn.Sequential(
+            torch.nn.Linear(self.emb_dim, self.emb_dim),
+            torch.nn.ReLU(),
+            torch.nn.Linear(self.emb_dim, self.emb_dim)
+        )            
+        
     def compute_logits_and_labels(self, batch):
         out = self.encoder(batch.x, batch.edge_index, batch.edge_attr)
         out = out[batch.mask]
@@ -33,7 +30,7 @@ class MaskContrastModel(torch.nn.Module):
                 
         # compute logits
         features = torch.nn.functional.normalize(features, p=2, dim=1)
-        logits = (torch.matmul(features, features.T) / self.temperature)
+        logits = (torch.matmul(features, features.t()) / self.temperature)
         # for numerical stability
         logits_max, _ = torch.max(logits, dim=1, keepdim=True)
         logits = logits - logits_max.detach()
@@ -43,7 +40,7 @@ class MaskContrastModel(torch.nn.Module):
     def criterion(self, logits, labels):
         #
         labels = labels.contiguous().view(-1, 1)
-        mask = torch.eq(labels, labels.T).float().cuda()
+        mask = torch.eq(labels, labels.t()).float().cuda()
         
         # mask-out self-contrast cases
         logits_mask = torch.scatter(
@@ -76,7 +73,7 @@ class MaskFullContrastModel(MaskContrastModel):
         
         # compute logits
         features = torch.nn.functional.normalize(features, p=2, dim=1)
-        logits = (torch.matmul(features, features.T) / self.temperature)
+        logits = (torch.matmul(features, features.t()) / self.temperature)
         # for numerical stability
         logits_max, _ = torch.max(logits, dim=1, keepdim=True)
         logits = logits - logits_max.detach()
@@ -84,14 +81,14 @@ class MaskFullContrastModel(MaskContrastModel):
         return logits, labels
 
 class MaskBalancedContrastModel(MaskContrastModel):
-    def __init__(self, use_mlp, balance_k):
-        super(MaskBalancedContrastModel, self).__init__(use_mlp=use_mlp)
+    def __init__(self, balance_k):
+        super(MaskBalancedContrastModel, self).__init__()
         self.balance_k = balance_k
         
     def criterion(self, logits, labels):
         #
         labels = labels.contiguous().view(-1, 1)
-        mask = torch.eq(labels, labels.T).float().cuda()
+        mask = torch.eq(labels, labels.t()).float().cuda()
         
         # mask-out self-contrast cases
         logits_mask = torch.scatter(
