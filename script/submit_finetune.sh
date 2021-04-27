@@ -14,4 +14,4 @@ srun \
   --no-container-mount-home \
   --container-mounts="/nfs/projects/mbzuai/peterahn/workspace/substruct-embedding:/substruct-embedding" \
   --container-workdir="/substruct-embedding/src" \
-  bash ../script/mask_contrast${1}.sh
+  bash ../script/finetune.sh $1

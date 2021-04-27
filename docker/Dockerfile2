@@ -1,0 +1,14 @@
+FROM pytorch/pytorch:1.1.0-cuda10.0-cudnn7.5-devel
+
+RUN pip install torch-scatter==1.4.0
+RUN pip install torch-sparse==0.4.4
+RUN pip install torch-cluster==1.4.5
+RUN pip install torch-spline-conv==1.0.6
+RUN pip install torch-geometric==1.0.3
+
+RUN conda install -y tqdm
+RUN conda install -y -c conda-forge neptune-client
+RUN conda install -y -c conda-forge rdkit==2019.03.1
+RUN conda install -y -c conda-forge scikit-learn
+
+RUN pip install dataclasses
