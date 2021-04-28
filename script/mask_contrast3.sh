@@ -5,6 +5,7 @@ MODEL_PATH="../resource/result/${RUN_TAG}/model.pt"
 
 echo $RUN_TAG
 echo $MODEL_PATH
+"""
 
 python pretrain.py \
 --use_neptune \
@@ -12,6 +13,7 @@ python pretrain.py \
 --mask_rate 0.15 \
 --batch_size 512 \
 --run_tag $RUN_TAG
+"""
 
 python finetune.py \
 --datasets "tox21" "bace" "bbbp" "toxcast" "sider" "clintox" \

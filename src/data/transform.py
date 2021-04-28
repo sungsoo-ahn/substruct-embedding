@@ -26,6 +26,7 @@ def mask_data(data, mask_rate=0.15):
     return data    
 
 def double_mask_data(data, mask_rate=0.15):
-    data0 = mask_data(data, mask_rate=0.15) 
-    data1 = mask_data(data, mask_rate=0.15) 
+    data0 = mask_data(data, mask_rate=0.15)
+    data1 = mask_data(data, mask_rate=0.15)
+    
     return data0, data1

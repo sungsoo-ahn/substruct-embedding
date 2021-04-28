@@ -27,7 +27,7 @@ def train(model, optimizer, loader, device):
         y = batch.y.view(pred.shape).to(torch.float64)
         
         # Whether y is non-null or not.
-        is_valid = y ** 2 > 0
+        is_valid = y ** 2 > 1e-6
         # Loss matrix
         loss_mat = criterion(pred.double(), (y + 1) / 2)
         # loss matrix after removing null target
@@ -63,8 +63,8 @@ def evaluate(model, loader, device):
 
     roc_list = []
     for i in range(y_true.shape[1]):
-        if np.sum(y_true[:, i] == 1) > 0 and np.sum(y_true[:, i] == -1) > 0:
-            is_valid = y_true[:, i] ** 2 > 0
+        if np.sum(y_true[:, i] == 1) > 1e-6 and np.sum(y_true[:, i] == -1) > 1e-6:
+            is_valid = y_true[:, i] ** 2 > 1e-6
             roc_list.append(roc_auc_score((y_true[is_valid, i] + 1) / 2, y_scores[is_valid, i]))
 
     acc = sum(roc_list) / len(roc_list)
@@ -80,12 +80,13 @@ def main():
     parser.add_argument("--num_epochs", type=int, default=100)
 
     parser.add_argument("--batch_size", type=int, default=32)
-    parser.add_argument("--num_workers", type=int, default=0)
+    parser.add_argument("--num_workers", type=int, default=8)
 
     parser.add_argument("--num_layers", type=int, default=5)
     parser.add_argument("--emb_dim", type=int, default=300)
     parser.add_argument("--drop_rate", type=float, default=0.5)
 
+    parser.add_argument()
     parser.add_argument("--lr", type=float, default=1e-3)
 
     parser.add_argument("--run_tag", type=str, default="")
@@ -123,13 +124,22 @@ def main():
                 frac_test=0.1,
             )
             train_loader = DataLoader(
-                train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers
+                train_dataset, 
+                batch_size=args.batch_size, 
+                shuffle=True, 
+                num_workers=args.num_workers
             )
             vali_loader = DataLoader(
-                valid_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers
+                valid_dataset, 
+                batch_size=args.batch_size, 
+                shuffle=False, 
+                num_workers=args.num_workers
             )
             test_loader = DataLoader(
-                test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers
+                test_dataset, 
+                batch_size=args.batch_size, 
+                shuffle=False, 
+                num_workers=args.num_workers
             )
 
             num_tasks = {
