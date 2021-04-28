@@ -13,7 +13,7 @@ from torch_geometric.data import DataLoader
 
 from model import GNN_graphpred
 from data.dataset import MoleculeDataset
-from data.splitter import scaffold_split
+from data.splitter import scaffold_split, random_split
 
 criterion = nn.BCEWithLogitsLoss(reduction="none")
 
@@ -40,7 +40,7 @@ def train(model, optimizer, loader, device):
         loss.backward()
 
         optimizer.step()
-
+        
     return {"loss": loss.detach()}
 
 
@@ -87,8 +87,10 @@ def main():
     parser.add_argument("--drop_rate", type=float, default=0.5)
 
     parser.add_argument("--lr", type=float, default=1e-3)
+    parser.add_argument("--lr_scale", type=float, default=1.0)
 
     parser.add_argument("--run_tag", type=str, default="")
+    parser.add_argument("--split_type", type=str, default="scaffold")
     parser.add_argument("--num_runs", type=int, default=5)
 
     args = parser.parse_args()
@@ -114,14 +116,24 @@ def main():
                 '../resource/dataset/' + dataset_name + '/processed/smiles.csv', header=None
                 )[0].tolist()
         
-            train_dataset, valid_dataset, test_dataset = scaffold_split(
-                dataset,
-                smiles_list,
-                null_value=0,
-                frac_train=0.8,
-                frac_valid=0.1,
-                frac_test=0.1,
-            )
+            if args.split_type == "scaffold":
+                train_dataset, valid_dataset, test_dataset = scaffold_split(
+                    dataset,
+                    smiles_list,
+                    null_value=0,
+                    frac_train=0.8,
+                    frac_valid=0.1,
+                    frac_test=0.1,
+                )
+            elif args.split_type == "random":
+                train_dataset, valid_dataset, test_dataset = random_split(
+                    dataset,
+                    null_value=0,
+                    frac_train=0.8,
+                    frac_valid=0.1,
+                    frac_test=0.1,
+                )
+            
             train_loader = DataLoader(
                 train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers
             )
@@ -151,11 +163,25 @@ def main():
                 drop_ratio=args.drop_rate,
             )
             if not args.model_path == "":
-                model.gnn.load_state_dict(torch.load(args.model_path))
+                try:
+                    model.gnn.load_state_dict(torch.load(args.model_path))
+                except:
+                    state_dict = torch.load(args.model_path)
+                    new_state_dict = dict()
+                    for key in state_dict:
+                        if "encoder." in key:
+                            new_state_dict[key.replace("encoder.", "")] = state_dict[key]
+
+                    model.gnn.load_state_dict(new_state_dict)
 
             model.to(device)
 
-            optimizer = optim.Adam(model.parameters(), lr=args.lr)
+            model_param_group = []
+            model_param_group.append({"params": model.gnn.parameters()})
+            model_param_group.append(
+                {"params": model.graph_pred_linear.parameters(), "lr":args.lr*args.lr_scale}
+                )
+            optimizer = optim.Adam(model_param_group, lr=args.lr)
             scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.3)
             
             best_vali_acc = 0.0
