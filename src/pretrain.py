@@ -15,6 +15,7 @@ from scheme.mask_contrast import (
     MaskFullContrastModel,
     MaskBalancedContrastModel,
     MaskContrastScheme,
+    MaskSafeContrastModel,
 )
 from evaluate_knn import get_eval_datasets, evaluate_knn
 
@@ -32,7 +33,7 @@ def main():
     parser.add_argument("--scheme", type=str, default="mask_contrast")
 
     parser.add_argument("--batch_size", type=int, default=1024)
-    parser.add_argument("--num_workers", type=int, default=0)
+    parser.add_argument("--num_workers", type=int, default=8)
 
     parser.add_argument("--num_layers", type=int, default=5)
     parser.add_argument("--emb_dim", type=int, default=300)
@@ -65,6 +66,10 @@ def main():
     elif args.scheme == "mask_balanced_contrast":
         scheme = MaskContrastScheme()
         model = MaskBalancedContrastModel(balance_k=args.balance_k)
+    
+    elif args.scheme == "mask_safe_contrast":
+        scheme = MaskContrastScheme()
+        model = MaskSafeContrastModel()
                 
     if not args.use_double_mask:
         transform = lambda data: mask_data(data, mask_rate=args.mask_rate)

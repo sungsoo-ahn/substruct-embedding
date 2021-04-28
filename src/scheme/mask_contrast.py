@@ -65,6 +65,32 @@ class MaskContrastModel(torch.nn.Module):
         
         return loss
 
+class MaskSafeContrastModel(MaskContrastModel):
+    def criterion(self, logits, labels):
+        #
+        batch_size = logits.size(0) // 2
+        pos_label = torch.cat([torch.arange(batch_size) for i in range(2)], dim=0)
+        mask = (pos_label.unsqueeze(0) == pos_label.unsqueeze(1)).float()
+        mask = mask - torch.eye(mask.size(0))
+        mask = mask.cuda()
+    
+        # mask-out self-contrast cases
+        labels = labels.contiguous().view(-1, 1)
+        logits_mask = 1.0 - torch.eq(labels, labels.t()).float()
+        logits_mask += mask
+
+        # compute log_prob
+        exp_logits = torch.exp(logits) * logits_mask
+        log_prob = logits - torch.log(exp_logits.sum(1, keepdim=True))
+        
+        # compute mean of log-likelihood over positive
+        mean_log_prob_pos = (mask * log_prob).sum(1) / mask.sum(1)
+                
+        # loss
+        loss = -self.temperature * mean_log_prob_pos.mean()
+        
+        return loss
+
 class MaskFullContrastModel(MaskContrastModel):
     def compute_logits_and_labels(self, batch):
         out = self.encoder(batch.x, batch.edge_index, batch.edge_attr)
