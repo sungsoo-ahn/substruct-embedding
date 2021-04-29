@@ -158,7 +158,7 @@ class MaskTop1ContrastModel(MaskContrastModel):
         logits = logits[maskmask]
         logits_mask = logits_mask[maskmask]
                 
-        top1_idxs = torch.argmax(torch.exp(logits) * logits_mask, dim=1)
+        top1_idxs = torch.argmax(torch.exp(logits) * mask, dim=1)        
         top1_mask = torch.scatter(
             torch.zeros_like(mask), 1, top1_idxs.view(-1, 1).cuda(), 1
         )
