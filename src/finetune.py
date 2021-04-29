@@ -86,7 +86,6 @@ def main():
     parser.add_argument("--emb_dim", type=int, default=300)
     parser.add_argument("--drop_rate", type=float, default=0.5)
 
-    parser.add_argument()
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--lr_scale", type=float, default=1.0)
 

@@ -5,7 +5,6 @@ MODEL_PATH="../resource/result/${RUN_TAG}/model.pt"
 
 echo $RUN_TAG
 echo $MODEL_PATH
-"""
 
 """
 python pretrain.py \

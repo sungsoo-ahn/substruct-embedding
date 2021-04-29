@@ -1,20 +1,19 @@
 #!/bin/bash
 
-RUN_TAG="mask_contrast0"
+RUN_TAG="mask_safe_contrast"
 MODEL_PATH="../resource/result/${RUN_TAG}/model.pt"
 
 echo $RUN_TAG
 echo $MODEL_PATH
 
-"""
 python pretrain.py \
 --use_neptune \
---scheme mask_contrast \
+--scheme mask_safe_contrast \
+--use_double_mask \
 --mask_rate 0.15 \
 --run_tag $RUN_TAG
-"""
 
 python finetune.py \
---datasets "tox21" "bace" "bbbp" "toxcast" "sider" "clintox" \
+--datasets "bace" "bbbp" "toxcast" "sider" "clintox" "tox21" \
 --model_path $MODEL_PATH \
 --run_tag $RUN_TAG

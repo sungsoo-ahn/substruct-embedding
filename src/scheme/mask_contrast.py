@@ -24,9 +24,12 @@ class MaskContrastModel(torch.nn.Module):
         
     def compute_logits_and_labels(self, batch):
         out = self.encoder(batch.x, batch.edge_index, batch.edge_attr)
-        out = out[batch.mask]
+        if self.mask_features:
+            out = out[batch.mask]
+        
         features = self.projector(out)
-        labels = batch.y[batch.mask]
+        if self.mask_features:
+            labels = batch.y[batch.mask]
                 
         # compute logits
         features = torch.nn.functional.normalize(features, p=2, dim=1)
@@ -65,46 +68,38 @@ class MaskContrastModel(torch.nn.Module):
         
         return loss
 
-class MaskSafeContrastModel(MaskContrastModel):
+class RobustMaskContrastModel(MaskContrastModel):
+    def __init__(self, gce_coef):
+        super(MaskBalancedContrastModel, self).__init__()
+        self.gce_coef = gce_coef
+
+
     def criterion(self, logits, labels):
         #
-        batch_size = logits.size(0) // 2
-        pos_label = torch.cat([torch.arange(batch_size) for i in range(2)], dim=0)
-        mask = (pos_label.unsqueeze(0) == pos_label.unsqueeze(1)).float()
-        mask = mask - torch.eye(mask.size(0))
-        mask = mask.cuda()
-    
-        # mask-out self-contrast cases
         labels = labels.contiguous().view(-1, 1)
-        logits_mask = 1.0 - torch.eq(labels, labels.t()).float()
-        logits_mask += mask
+        numer_mask = torch.eq(labels, labels.t()).float().cuda()
+        
+        # mask-out self-contrast cases
+        denom_mask = torch.scatter(
+            torch.ones_like(mask), 1, torch.arange(mask.size(0)).view(-1, 1).cuda(), 0
+        )
+        numer_mask = numer_mask * denom_mask
 
+        # mask out where numerator is zero
+        invalid_numer_mask = (torch.sum(numer_mask, dim=1) > 0)
+        logits = logits[invalid_numer_mask]
+        numer_mask = numer_mask[invalid_numer_mask]
+        denom_mask = denom_mask[invalid_numer_mask]
+        
         # compute log_prob
-        exp_logits = torch.exp(logits) * logits_mask
-        log_prob = logits - torch.log(exp_logits.sum(1, keepdim=True))
-        
-        # compute mean of log-likelihood over positive
-        mean_log_prob_pos = (mask * log_prob).sum(1) / mask.sum(1)
-                
-        # loss
-        loss = -self.temperature * mean_log_prob_pos.mean()
-        
-        return loss
+        numer_exp_logits = torch.exp(logits) * numer_mask
+        denom_exp_logits = torch.exp(logits) * denom_mask
 
-class MaskFullContrastModel(MaskContrastModel):
-    def compute_logits_and_labels(self, batch):
-        out = self.encoder(batch.x, batch.edge_index, batch.edge_attr)
-        features = self.projector(out)
-        labels = batch.y
-        
-        # compute logits
-        features = torch.nn.functional.normalize(features, p=2, dim=1)
-        logits = (torch.matmul(features, features.t()) / self.temperature)
-        # for numerical stability
-        logits_max, _ = torch.max(logits, dim=1, keepdim=True)
-        logits = logits - logits_max.detach()
-        
-        return logits, labels
+        # compute mean of log-likelihood over positive
+        probs = numer_exp_logits / denom_exp_logits.sum(1, keepdim=True)
+        loss = -self.temperature * (probs ** self.gce_coef).sum(dim=1).mean(dim=0)
+                        
+        return loss
 
 class MaskBalancedContrastModel(MaskContrastModel):
     def __init__(self, balance_k):

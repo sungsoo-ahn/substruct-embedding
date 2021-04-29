@@ -114,7 +114,7 @@ def main():
         if args.use_neptune:
             run[f"epoch"].log(epoch)
 
-        for batch in tqdm(loader):
+        for batch in (loader):
             step += 1
             train_statistics = scheme.train_step(batch, model, optim)
             if step % args.log_freq == 0:
