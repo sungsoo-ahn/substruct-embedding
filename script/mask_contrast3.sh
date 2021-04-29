@@ -1,6 +1,6 @@
 #!/bin/bash
 
-RUN_TAG="mask_contrast3"
+RUN_TAG="edge_contrast3"
 MODEL_PATH="../resource/result/${RUN_TAG}/model.pt"
 
 echo $RUN_TAG
@@ -8,11 +8,13 @@ echo $MODEL_PATH
 
 python pretrain.py \
 --use_neptune \
---scheme robust_mask_contrast \
---gce_coef 0.7 \
+--scheme edge_contrast \
+--transform edge_mask \
+--mask_rate 0.15 \
+--edge_loss_coef 0.1 \
 --run_tag $RUN_TAG
 
 python finetune.py \
---datasets "bace" "bbbp" "sider" "clintox" "tox21" "toxcast"\
+--datasets "bace" "bbbp" "toxcast" "sider" "clintox" "tox21" \
 --model_path $MODEL_PATH \
 --run_tag $RUN_TAG

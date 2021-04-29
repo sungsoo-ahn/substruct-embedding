@@ -1,6 +1,6 @@
 #!/bin/bash
 
-RUN_TAG="mask_safe_contrast"
+RUN_TAG="edge_contrast0"
 MODEL_PATH="../resource/result/${RUN_TAG}/model.pt"
 
 echo $RUN_TAG
@@ -8,9 +8,9 @@ echo $MODEL_PATH
 
 python pretrain.py \
 --use_neptune \
---scheme mask_safe_contrast \
---use_double_mask \
---mask_rate 0.15 \
+--scheme edge_contrast \
+--transform edge_mask \
+--mask_rate 0.1 \
 --run_tag $RUN_TAG
 
 python finetune.py \
