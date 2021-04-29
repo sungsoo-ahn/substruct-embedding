@@ -140,7 +140,6 @@ class MaskBalancedContrastModel(MaskContrastModel):
         loss = -self.temperature * mean_log_prob_pos.mean()
         
         return loss
-        
 
 
 class MaskContrastScheme:
@@ -158,6 +157,84 @@ class MaskContrastScheme:
         loss.backward()
         optim.step()
         
-        statistics["num_masked_nodes"] = batch.mask.long().sum()
+        logit_size = batch.mask.long().sum()
+        num_numer = (torch.eq(labels, labels.t()).float().sum() - logit_size)
+        num_denom = logit_size ** 2 - logit_size
+        
+        statistics["logit_size"] = logit_size
+        statistics["positive_ratio"] = num_numer / num_denom            
 
         return statistics
+
+class EdgeContrastModel(MaskContrastModel):
+    def compute_logits_and_labels(self, batch):
+        labels = batch.y
+        edge_labels = batch.edge_y        
+        
+        out = self.encoder(batch.x, batch.edge_index, batch.edge_attr)        
+        features = self.projector(out)
+        features = torch.nn.functional.normalize(features, p=2, dim=1)
+        
+        edge_features = 0.5 * (features[batch.edge_index[0]] + features[batch.edge_index[1]])
+        edge_features = torch.nn.functional.normalize(edge_features, p=2, dim=1)
+        
+        if self.mask_features:
+            features = features[batch.mask]
+            edge_features = edge_features[batch.edge_mask]
+            labels = labels[batch.mask]
+            edge_labels = edge_labels[batch.edge_mask]
+            
+        # compute logits
+        logits = (torch.matmul(features, features.t()) / self.temperature)
+        # for numerical stability
+        logits_max, _ = torch.max(logits, dim=1, keepdim=True)
+        logits = logits - logits_max.detach()
+        
+        edge_logits = (torch.matmul(edge_features, edge_features.t()) / self.temperature)
+        edge_logits_max, _ = torch.max(edge_logits, dim=1, keepdim=True)
+        edge_logits = edge_logits - edge_logits_max.detach()
+        
+        return logits, edge_logits, labels, edge_labels
+
+
+class EdgeContrastScheme:
+    def __init__(self, edge_loss_coef):
+        self.edge_loss_coef = edge_loss_coef
+        
+    def train_step(self, batch, model, optim):
+        model.train()
+        batch = batch.to(0)
+
+        logits, edge_logits, labels, edge_labels = model.compute_logits_and_labels(batch)
+        node_loss = model.criterion(logits, labels)
+        edge_loss = model.criterion(edge_logits, edge_labels)
+        loss = node_loss + self.edge_loss_coef * edge_loss
+                
+        statistics = dict()
+        statistics["node_loss"] = node_loss.detach()
+        statistics["edge_loss"] = edge_loss.detach()
+
+        optim.zero_grad()
+        loss.backward()
+        optim.step()
+        
+        logit_size = batch.mask.float().sum()
+        labels = labels.contiguous().view(-1, 1)
+        num_numer = (torch.eq(labels, labels.t()).float().sum() - logit_size)
+        num_denom = logit_size ** 2 - logit_size
+                
+        statistics["node_logit_size"] = logit_size
+        statistics["node_masked_ratio"] = logit_size / batch.x.size(0)
+        statistics["node_positive_ratio"] = num_numer / num_denom            
+
+        logit_size = batch.edge_mask.float().sum()
+        edge_labels = edge_labels.contiguous().view(-1, 1)
+        num_numer = (torch.eq(edge_labels, edge_labels.t()).float().sum() - logit_size)
+        num_denom = logit_size ** 2 - logit_size
+        
+        statistics["edge_logit_size"] = logit_size
+        statistics["edge_masked_ratio"] = logit_size / batch.edge_index.size(1)
+        statistics["edge_positive_ratio"] = num_numer / num_denom
+        
+        return statistics
+

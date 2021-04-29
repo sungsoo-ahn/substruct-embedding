@@ -8,13 +8,15 @@ import torch_geometric
 
 from data.dataset import MoleculeDataset
 from data.splitter import random_split
-from data.transform import mask_data, double_mask_data
+from data.transform import mask_data, double_mask_data, mask_edge_data
 from data.collate import collate, collate_cat
 from scheme.mask_contrast import (
     MaskContrastScheme,
     MaskContrastModel,
     MaskBalancedContrastModel,
     RobustMaskContrastModel,
+    EdgeContrastModel,
+    EdgeContrastScheme
 )
 from evaluate_knn import get_eval_datasets, evaluate_knn
 
@@ -30,6 +32,7 @@ def main():
     parser.add_argument("--log_freq", type=float, default=10)
 
     parser.add_argument("--scheme", type=str, default="mask_contrast")
+    parser.add_argument("--transform", type=str, default="mask")
 
     parser.add_argument("--batch_size", type=int, default=1024)
     parser.add_argument("--num_workers", type=int, default=8)
@@ -47,6 +50,7 @@ def main():
     parser.add_argument("--use_double_mask", action="store_true")
 
     parser.add_argument("--gce_coef", type=float, default=0.7)
+    parser.add_argument("--edge_loss_coef", type=float, default=1.0)
 
     args = parser.parse_args()
 
@@ -67,13 +71,21 @@ def main():
         scheme = MaskContrastScheme()
         model = RobustMaskContrastModel(gce_coef=args.gce_coef)
                 
-    if not args.use_double_mask:
+    elif args.scheme == "edge_contrast":
+        scheme = EdgeContrastScheme(edge_loss_coef=args.edge_loss_coef)
+        model = EdgeContrastModel()
+        
+    if args.transform == "mask":
         transform = lambda data: mask_data(data, mask_rate=args.mask_rate)
         collate_fn = collate
-    else:
+    elif args.transform == "double_mask":
         transform = lambda data: double_mask_data(data, mask_rate=args.mask_rate)
         collate_fn = collate_cat
         args.batch_size = args.batch_size // 2
+    elif args.transform == "edge_mask":
+        transform = lambda data: mask_edge_data(data, mask_rate=args.mask_rate)
+        collate_fn = collate
+        
 
 
     print("Loading model...")
