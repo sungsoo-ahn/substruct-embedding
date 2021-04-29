@@ -11,11 +11,10 @@ from data.splitter import random_split
 from data.transform import mask_data, double_mask_data
 from data.collate import collate, collate_cat
 from scheme.mask_contrast import (
-    MaskContrastModel,
-    MaskFullContrastModel,
-    MaskBalancedContrastModel,
     MaskContrastScheme,
-    MaskSafeContrastModel,
+    MaskContrastModel,
+    MaskBalancedContrastModel,
+    RobustMaskContrastModel,
 )
 from evaluate_knn import get_eval_datasets, evaluate_knn
 
@@ -47,6 +46,7 @@ def main():
     parser.add_argument("--balance_k", type=int, default=100)
     parser.add_argument("--use_double_mask", action="store_true")
 
+    parser.add_argument("--gce_coef", type=float, default=0.7)
 
     args = parser.parse_args()
 
@@ -59,17 +59,13 @@ def main():
         scheme = MaskContrastScheme()
         model = MaskContrastModel()
         
-    elif args.scheme == "mask_full_contrast":
-        scheme = MaskContrastScheme()
-        model = MaskFullContrastModel()
-        
     elif args.scheme == "mask_balanced_contrast":
         scheme = MaskContrastScheme()
         model = MaskBalancedContrastModel(balance_k=args.balance_k)
     
-    elif args.scheme == "mask_safe_contrast":
+    elif args.scheme == "robust_mask_contrast":
         scheme = MaskContrastScheme()
-        model = MaskSafeContrastModel()
+        model = RobustMaskContrastModel(gce_coef=args.gce_coef)
                 
     if not args.use_double_mask:
         transform = lambda data: mask_data(data, mask_rate=args.mask_rate)

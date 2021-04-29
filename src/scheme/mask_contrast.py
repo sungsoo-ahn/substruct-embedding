@@ -22,6 +22,8 @@ class MaskContrastModel(torch.nn.Module):
             torch.nn.Linear(self.emb_dim, self.emb_dim)
         )            
         
+        self.mask_features = True
+        
     def compute_logits_and_labels(self, batch):
         out = self.encoder(batch.x, batch.edge_index, batch.edge_attr)
         if self.mask_features:
@@ -70,9 +72,8 @@ class MaskContrastModel(torch.nn.Module):
 
 class RobustMaskContrastModel(MaskContrastModel):
     def __init__(self, gce_coef):
-        super(MaskBalancedContrastModel, self).__init__()
+        super(RobustMaskContrastModel, self).__init__()
         self.gce_coef = gce_coef
-
 
     def criterion(self, logits, labels):
         #
@@ -81,7 +82,7 @@ class RobustMaskContrastModel(MaskContrastModel):
         
         # mask-out self-contrast cases
         denom_mask = torch.scatter(
-            torch.ones_like(mask), 1, torch.arange(mask.size(0)).view(-1, 1).cuda(), 0
+            torch.ones_like(numer_mask), 1, torch.arange(numer_mask.size(0)).view(-1, 1).cuda(), 0
         )
         numer_mask = numer_mask * denom_mask
 
@@ -92,13 +93,13 @@ class RobustMaskContrastModel(MaskContrastModel):
         denom_mask = denom_mask[invalid_numer_mask]
         
         # compute log_prob
-        numer_exp_logits = torch.exp(logits) * numer_mask
-        denom_exp_logits = torch.exp(logits) * denom_mask
-
+        exp_logits = torch.exp(logits) * denom_mask
+        log_prob = logits - torch.log(exp_logits.sum(1, keepdim=True))
+        prob = (log_prob * self.gce_coef).exp()
         # compute mean of log-likelihood over positive
-        probs = numer_exp_logits / denom_exp_logits.sum(1, keepdim=True)
-        loss = -self.temperature * (probs ** self.gce_coef).sum(dim=1).mean(dim=0)
-                        
+        #probs = numer_exp_logits / denom_exp_logits.sum(1, keepdim=True)
+        loss = -((numer_mask * prob).sum(dim=1) / numer_mask.sum(dim=1)).log().mean()
+        loss *= self.temperature / self.gce_coef
         return loss
 
 class MaskBalancedContrastModel(MaskContrastModel):
