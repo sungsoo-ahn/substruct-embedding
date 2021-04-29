@@ -141,6 +141,40 @@ class MaskBalancedContrastModel(MaskContrastModel):
         
         return loss
 
+class MaskTop1ContrastModel(MaskContrastModel):
+    def criterion(self, logits, labels):
+        #
+        labels = labels.contiguous().view(-1, 1)
+        mask = torch.eq(labels, labels.t()).float().cuda()
+        
+        # mask-out self-contrast cases
+        logits_mask = torch.scatter(
+            torch.ones_like(mask), 1, torch.arange(mask.size(0)).view(-1, 1).cuda(), 0
+        )
+        mask = mask * logits_mask
+        
+        maskmask = (torch.sum(mask, dim=1) > 0)
+        mask = mask[maskmask]
+        logits = logits[maskmask]
+        logits_mask = logits_mask[maskmask]
+                
+        top1_idxs = torch.argmax(torch.exp(logits) * logits_mask, dim=1)
+        top1_mask = torch.scatter(
+            torch.zeros_like(mask), 1, top1_idxs.view(-1, 1).cuda(), 1
+        )
+        mask = top1_mask * mask
+        
+        # compute log_prob
+        exp_logits = torch.exp(logits) * logits_mask
+        log_prob = logits - torch.log(exp_logits.sum(1, keepdim=True))
+        
+        # compute mean of log-likelihood over positive
+        mean_log_prob_pos = (mask * log_prob).sum(1) / mask.sum(1)
+                
+        # loss
+        loss = -self.temperature * mean_log_prob_pos.mean()
+        
+        return loss
 
 class MaskContrastScheme:
     def train_step(self, batch, model, optim):
