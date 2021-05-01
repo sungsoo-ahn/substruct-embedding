@@ -137,11 +137,11 @@ def main():
 
         if args.use_neptune:
             torch.save(
-                model.state_dict(), f"../resource/result/{run_tag}/model_{epoch:02d}.pt"
+                model.gnn.state_dict(), f"../resource/result/{run_tag}/model_{epoch:02d}.pt"
             )
 
     if args.use_neptune:
-        torch.save(model.state_dict(), f"../resource/result/{run_tag}/model.pt")
+        torch.save(model.gnn.state_dict(), f"../resource/result/{run_tag}/model.pt")
         run.stop()
 
 
