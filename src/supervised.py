@@ -127,7 +127,7 @@ def main():
         run["train/loss"].log(loss)
 
     if args.use_neptune:
-        torch.save(model.gnn.state_dict(), f"../resource/result/{run_tag}/supervised.pth")
+        torch.save(model.gnn.state_dict(), args.output_model_path)
 
 
 if __name__ == "__main__":
