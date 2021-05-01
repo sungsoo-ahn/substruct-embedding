@@ -14,4 +14,4 @@ srun \
   --no-container-mount-home \
   --container-mounts="/nfs/projects/mbzuai/peterahn/workspace/substruct-embedding:/substruct-embedding" \
   --container-workdir="/substruct-embedding/src" \
-  bash ../script/finetune_tune.sh $1 $2 $3
+  bash ../script/${1}
