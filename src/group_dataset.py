@@ -41,7 +41,7 @@ def collate(data_list):
             if key == 'edge_index':
                 item = item + cumsum_node
             elif key == 'group_y':
-                item = item + cumsum_group
+                item[item > 0] = item[item > 0] + cumsum_group
                 
             batch[key].append(item)
 
