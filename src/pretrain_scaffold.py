@@ -66,6 +66,7 @@ def main():
     dataset = ScaffoldDataset(
         "../resource/dataset/" + args.dataset, dataset=args.dataset, transform=transform,
     )
+    
     train_dataset, eval_dataset, _ = random_split(
         dataset,
         null_value=0,
@@ -73,6 +74,9 @@ def main():
         frac_valid=0.05,
         frac_test=0.0,
     )
+    
+    print(len(train_dataset))
+    print(len(eval_dataset))    
     
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
@@ -105,7 +109,7 @@ def main():
         if args.use_neptune:
             run[f"epoch"].log(epoch)
 
-        for batch, scaffold_batch in tqdm(train_loader):
+        for batch, scaffold_batch in (train_loader):
             step += 1
             train_statistics = scheme.train_step(batch, scaffold_batch, model, optim)
             if step % args.log_freq == 0:

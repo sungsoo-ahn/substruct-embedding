@@ -58,7 +58,7 @@ class ScaffoldDataset(InMemoryDataset):
             return len(item) - 1
 
 def main():
-    dataset_name = "tox21"
+    dataset_name = "zinc_standard_agent"
     print("Loading dataset...")
     dataset = MoleculeDataset("../resource/dataset/" + dataset_name, dataset=dataset_name)
     smiles_list = pd.read_csv(
