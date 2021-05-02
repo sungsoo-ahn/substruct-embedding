@@ -125,6 +125,7 @@ def main():
                     frac_valid=0.1,
                     frac_test=0.1,
                 )
+            
             elif args.split_type == "random":
                 train_dataset, valid_dataset, test_dataset = random_split(
                     dataset,

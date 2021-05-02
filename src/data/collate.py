@@ -11,7 +11,8 @@ def collate(data_list):
     for key in keys:
         batch[key] = []
     batch.batch = []
-
+    batch.batch_num_nodes = []
+    
     cumsum_node = 0
     cumsum_edge = 0
 
@@ -26,10 +27,14 @@ def collate(data_list):
 
         cumsum_node += num_nodes
         cumsum_edge += data.edge_index.shape[1]
+        
+        batch.batch_num_nodes.append(torch.tensor([num_nodes]))
 
     for key in keys:
         batch[key] = torch.cat(
             batch[key], dim=data_list[0].cat_dim(key, batch[key][0]))
+    
+    batch.batch_num_nodes = torch.cat(batch.batch_num_nodes, dim=0)
     
     batch.batch = torch.cat(batch.batch, dim=-1)
     

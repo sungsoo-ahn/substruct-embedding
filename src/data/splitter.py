@@ -6,6 +6,8 @@ from rdkit.Chem.Scaffolds import MurckoScaffold
 from collections import defaultdict
 from sklearn.model_selection import StratifiedKFold
 
+from tqdm import tqdm
+
 # splitter function
 
 def generate_scaffold(smiles, include_chirality=False):
@@ -62,7 +64,7 @@ def scaffold_split(dataset, smiles_list, task_idx=None, null_value=0,
 
     # create dict of the form {scaffold_i: [idx1, idx....]}
     all_scaffolds = {}
-    for i, smiles in smiles_list:
+    for i, smiles in tqdm(smiles_list):
         scaffold = generate_scaffold(smiles, include_chirality=True)
         if scaffold not in all_scaffolds:
             all_scaffolds[scaffold] = [i]
