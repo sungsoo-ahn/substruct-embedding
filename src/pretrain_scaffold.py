@@ -39,6 +39,7 @@ def main():
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--run_tag", type=str, default="")
     parser.add_argument("--use_neptune", action="store_true")
+    parser.add_argument("--mask_scaffold_features", action="store_true")
 
     args = parser.parse_args()
 
@@ -49,7 +50,7 @@ def main():
 
     if args.scheme == "graph_contrast":
         scheme = ScaffoldContrastScheme()
-        model = ScaffoldGraphContrastModel()
+        model = ScaffoldGraphContrastModel(mask_scaffold_features=args.mask_scaffold_features)
 
     elif args.scheme == "node_contrast":
         scheme = ScaffoldContrastScheme()
@@ -73,7 +74,12 @@ def main():
         frac_valid=0.05,
         frac_test=0.0,
     )
-    
+    print(len(dataset))
+    print(len(train_dataset))
+    print(len(eval_dataset))
+
+    assert False
+
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
         batch_size=args.batch_size,
@@ -81,7 +87,7 @@ def main():
         num_workers=args.num_workers,
         collate_fn=collate_scaffold,
     )
-    
+
     eval_loader = torch.utils.data.DataLoader(
         eval_dataset,
         batch_size=args.batch_size,
@@ -105,7 +111,7 @@ def main():
         if args.use_neptune:
             run[f"epoch"].log(epoch)
 
-        for batch, scaffold_batch in tqdm(train_loader):
+        for batch, scaffold_batch in (train_loader):
             step += 1
             train_statistics = scheme.train_step(batch, scaffold_batch, model, optim)
             if step % args.log_freq == 0:
@@ -114,7 +120,7 @@ def main():
                 for key, val in train_statistics.items():
                     if args.use_neptune:
                         run[f"train/{key}"].log(val)
-                        
+
         eval_statistics = scheme.eval_epoch(eval_loader, model)
         print("eval")
         print(eval_statistics)
@@ -124,11 +130,11 @@ def main():
 
         if args.use_neptune:
             torch.save(
-                model.gnn.state_dict(), f"../resource/result/{run_tag}/model_{epoch:02d}.pt"
+                model.encoder.state_dict(), f"../resource/result/{run_tag}/model_{epoch:02d}.pt"
             )
 
     if args.use_neptune:
-        torch.save(model.gnn.state_dict(), f"../resource/result/{run_tag}/model.pt")
+        torch.save(model.encoder.state_dict(), f"../resource/result/{run_tag}/model.pt")
         run.stop()
 
 

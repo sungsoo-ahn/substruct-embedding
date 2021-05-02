@@ -26,7 +26,7 @@ def train(args, model, device, loader, optimizer):
     model.train()
 
     avg_loss = 0.0
-    
+
     for step, batch in enumerate(tqdm(loader)):
         batch = batch.to(device)
         pred = model(batch.x, batch.edge_index, batch.edge_attr, batch.batch)
@@ -38,16 +38,16 @@ def train(args, model, device, loader, optimizer):
         loss_mat = criterion(pred.double(), (y+1)/2)
         #loss matrix after removing null target
         loss_mat = torch.where(is_valid, loss_mat, torch.zeros(loss_mat.shape).to(loss_mat.device).to(loss_mat.dtype))
-            
+
         optimizer.zero_grad()
         loss = torch.sum(loss_mat)/torch.sum(is_valid)
         loss.backward()
 
         optimizer.step()
-        
+
         avg_loss += (loss.detach().cpu().item()) / len(loader)
-    
-    return avg_loss   
+
+    return avg_loss
 
 def main():
     # Training settings
@@ -102,12 +102,21 @@ def main():
     #set up model
     model = GNN_graphpred(args.num_layer, args.emb_dim, num_tasks, JK = args.JK, drop_ratio = args.dropout_ratio, graph_pooling = args.graph_pooling, gnn_type = args.gnn_type)
     if not args.input_model_path == "":
-        model.from_pretrained(args.input_model_path)
-    
+        try:
+            model.from_pretrained(args.input_model_path)
+        except:
+            state_dict = torch.load(args.input_model_path)
+            new_state_dict = dict()
+            for key in state_dict:
+                if "encoder." in key:
+                    new_state_dict[key.replace("encoder.", "")] = state_dict[key]
+
+            model.gnn.load_state_dict(new_state_dict)
+
     model.to(device)
 
     #set up optimizer
-    optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.decay)  
+    optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.decay)
     print(optimizer)
 
     if args.use_neptune:
@@ -122,7 +131,7 @@ def main():
 
     for epoch in range(1, args.epochs+1):
         print("====epoch " + str(epoch))
-    
+
         loss = train(args, model, device, loader, optimizer)
         run["train/loss"].log(loss)
 
