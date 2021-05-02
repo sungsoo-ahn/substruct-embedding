@@ -314,6 +314,24 @@ class MoleculeDataset(InMemoryDataset):
         raise NotImplementedError('Must indicate valid location of raw data. '
                                   'No download allowed')
 
+    def __cat_dim__(self, key, value):
+        r"""Returns the dimension for which :obj:`value` of attribute
+        :obj:`key` will get concatenated when creating batches.
+
+        .. note::
+
+            This method is for internal use only, and should only be overridden
+            if the batch concatenation process is corrupted for a specific data
+            attribute.
+        """
+        # Concatenate `*index*` and `*face*` attributes in the last dimension.
+        if bool(re.search('(index|face)', key)):
+            return -1
+        # By default, concatenate sparse matrices diagonally.
+        elif isinstance(value, SparseTensor):
+            return (0, 1)
+        return 0
+
     def process(self):
         data_smiles_list = []
         data_list = []

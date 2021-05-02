@@ -15,6 +15,7 @@ from scheme.scaffold_contrast import (
     ScaffoldNodeContrastModel,
 )
 from data.splitter import random_split
+
 import neptune.new as neptune
 
 from tqdm import tqdm
@@ -66,12 +67,12 @@ def main():
         "../resource/dataset/" + args.dataset, dataset=args.dataset, transform=transform,
     )
     train_dataset, eval_dataset, _ = random_split(
-            dataset,
-            null_value=0,
-            frac_train=0.95,
-            frac_valid=0.05,
-            frac_test=0.0,
-        )
+        dataset,
+        null_value=0,
+        frac_train=0.95,
+        frac_valid=0.05,
+        frac_test=0.0,
+    )
     
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
@@ -108,12 +109,14 @@ def main():
             step += 1
             train_statistics = scheme.train_step(batch, scaffold_batch, model, optim)
             if step % args.log_freq == 0:
+                print("train")
                 print(train_statistics)
                 for key, val in train_statistics.items():
                     if args.use_neptune:
                         run[f"train/{key}"].log(val)
                         
         eval_statistics = scheme.eval_epoch(eval_loader, model)
+        print("eval")
         print(eval_statistics)
         for key, val in eval_statistics.items():
             if args.use_neptune:

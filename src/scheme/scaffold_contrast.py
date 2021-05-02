@@ -2,23 +2,37 @@ import random
 import numpy as np
 import torch
 from torch_geometric.nn import global_mean_pool
+from torch_geometric.data import Data
 
 from model import GNN
 from scheme.util import compute_accuracy
 from data.collate import collate
 
-def collate_scaffold(data_tuple_list):
+def collate_scaffold(data_list_):
     data_list = []
-    scaffold_data_list = []
+    scaffold_data_list = []    
     scaffold_y_list = []
     graph_contrast_labels = []
-    for data, scaffold_data in data_tuple_list:
+    for data_ in data_list_:
+        data = Data(
+            x=data_.x, 
+            edge_index=data_.edge_index, 
+            edge_attr=data_.edge_attr
+            )
+        data.scaffold_y = data_.scaffold_y
+        data.scaffold_mask = data_.scaffold_mask
+        scaffold_data = Data(
+            x=data_.scaffold_x, 
+            edge_index=data_.scaffold_edge_index, 
+            edge_attr=data_.scaffold_edge_attr
+            )
+        
         scaffold_y = data.scaffold_y.item()
 
         data_list.append(data)
         if scaffold_y not in scaffold_y_list:
             scaffold_y_list.append(scaffold_y)
-            scaffold_data_list.append(scaffold_data)
+            scaffold_data_list.append(data)
             
         graph_contrast_labels.append(scaffold_y_list.index(scaffold_y))
     
@@ -113,7 +127,7 @@ class ScaffoldContrastScheme:
         
         return statistics
 
-    def evaluate_epoch(self, loader, model):
+    def eval_epoch(self, loader, model):
         model.eval()
         avg_loss = 0.0
         avg_acc = 0.0
