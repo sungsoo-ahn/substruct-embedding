@@ -51,7 +51,7 @@ class ScaffoldDataset(InMemoryDataset):
 
     def len(self):
         for item in self.slices.values():
-            return len(item) - 1
+            return len(item) - 1        
 
 def main():
     dataset_name = "zinc_standard_agent"
