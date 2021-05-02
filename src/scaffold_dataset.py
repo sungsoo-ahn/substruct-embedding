@@ -58,7 +58,7 @@ class ScaffoldDataset(InMemoryDataset):
             return len(item) - 1
 
 def main():
-    dataset_name = "zinc_standard_agent"
+    dataset_name = "tox21"
     print("Loading dataset...")
     dataset = MoleculeDataset("../resource/dataset/" + dataset_name, dataset=dataset_name)
     smiles_list = pd.read_csv(
@@ -91,7 +91,7 @@ def main():
             unique_scaffold_smiles_list[scaffold_smiles] = unique_cnt
             unique_cnt += 1
             
-        scaffold_data = mol_to_graph_data_obj_simple(scaffold_mol)    
+        scaffold_data = mol_to_graph_data_obj_simple(scaffold_mol)        
         
         new_data = ScaffoldData()
         new_data.x = data.x
@@ -105,7 +105,7 @@ def main():
         new_data.scaffold_mask = torch.zeros(data.x.size(0))
         new_data.scaffold_mask[scaffold_idxs] = True
         new_data.scaffold_y = torch.tensor([unique_scaffold_smiles_list[scaffold_smiles]])
-                        
+
         new_data_list.append(new_data)
             
     processed_dir = "../resource/dataset/zinc_scaffold"

@@ -11,9 +11,14 @@ from data.collate import collate
 def collate_scaffold(data_list_):
     data_list = []
     scaffold_data_list = []    
-    scaffold_y_list = []
+    scaffold_y_list = dict()
     graph_contrast_labels = []
+    
+    cnt0 = 0
+    cnt1 = 0
     for data_ in data_list_:
+        cnt0 += data_.scaffold_mask.sum()
+        
         data = Data(
             x=data_.x, 
             edge_index=data_.edge_index, 
@@ -31,10 +36,11 @@ def collate_scaffold(data_list_):
 
         data_list.append(data)
         if scaffold_y not in scaffold_y_list:
-            scaffold_y_list.append(scaffold_y)
-            scaffold_data_list.append(data)
+            cnt1 += data_.scaffold_x.size(0)
+            scaffold_y_list[scaffold_y] = len(scaffold_y_list.keys())
+            scaffold_data_list.append(scaffold_data)
             
-        graph_contrast_labels.append(scaffold_y_list.index(scaffold_y))
+        graph_contrast_labels.append(scaffold_y_list[scaffold_y])
     
     batch = collate(data_list)
     scaffold_batch = collate(scaffold_data_list)
@@ -104,7 +110,6 @@ class ScaffoldNodeContrastModel(ScaffoldGraphContrastModel):
         scaffold_node_features = torch.nn.functional.normalize(scaffold_node_features, p=2, dim=1)
         logits = (torch.matmul(node_features, scaffold_node_features.t()) / self.temperature)
         labels = batch.node_contrast_labels
-                
         return logits, labels
 
 class ScaffoldContrastScheme:
