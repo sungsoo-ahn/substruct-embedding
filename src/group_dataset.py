@@ -15,6 +15,12 @@ from itertools import repeat
 from data.dataset import MoleculeDataset, mol_to_graph_data_obj_simple
 from data.splitter import generate_scaffold
 
+def double_collate(data_list):
+    data_list0, data_list1 = zip(*data_list)
+    batch0 = collate(data_list0)
+    batch1 = collate(data_list1)
+    return batch0, batch1
+
 def collate(data_list):
     keys = [set(data.keys) for data in data_list]
     keys = list(set.union(*keys))
@@ -41,7 +47,7 @@ def collate(data_list):
             if key == 'edge_index':
                 item = item + cumsum_node
             elif key == 'group_y':
-                item[item > 0] = item[item > 0] + cumsum_group
+                item[item > -1] = item[item > -1] + cumsum_group
                 
             batch[key].append(item)
 
@@ -53,7 +59,8 @@ def collate(data_list):
 
     for key in keys:
         batch[key] = torch.cat(
-            batch[key], dim=data_list[0].cat_dim(key, batch[key][0]))
+            batch[key], dim=data_list[0].cat_dim(key, batch[key][0])
+            )
     
     batch.batch_num_nodes = torch.cat(batch.batch_num_nodes, dim=0)
     

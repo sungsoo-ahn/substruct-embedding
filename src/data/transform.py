@@ -8,16 +8,18 @@ num_atom_types = 120
 num_bond_types = 6
 
 def _clone_data(data):
-    data = Data(
-        x=data.x.clone(), 
-        edge_index=data.edge_index.clone(),
-        edge_attr=data.edge_attr.clone(),
+    new_data = Data(
+        x=data.x, 
+        edge_index=data.edge_index,
+        edge_attr=data.edge_attr,
         )
-    return data
 
-def _mask_data(data, mask_rate):
-    data.y = data.x[:, 0].clone()
+    new_data.atom_y = data.x[:, 0]
+    new_data.group_y = data.group_y
     
+    return new_data
+
+def _mask_data(data, mask_rate):    
     num_nodes = data.x.size(0)
     num_mask_nodes = max(int(mask_rate * num_nodes), 1)
     mask_nodes = list(sorted(random.sample(range(num_nodes), num_mask_nodes)))    
@@ -31,7 +33,7 @@ def _mask_data(data, mask_rate):
     return data
 
 def _mask_edge_data(data, mask_rate):
-    data.y = data.x[:, 0].clone()
+    data.y = data.x[:, 0]
     
     sorted_edge_index = torch.sort(data.edge_index, dim=0)[0]
     sorted_edge_atoms = data.y[sorted_edge_index]
@@ -65,13 +67,13 @@ def _mask_edge_data(data, mask_rate):
     return data
 
 
-def mask_data(data, mask_rate):
+def mask_data(data, mask_rate=0.15):
     data = _clone_data(data)
     data = _mask_data(data, mask_rate)
     
     return data
 
-def double_mask_data(data, mask_rate):
+def double_mask_data(data, mask_rate=0.15):
     data0 = _clone_data(data)
     data0 = _mask_data(data0, mask_rate)
     
@@ -80,7 +82,7 @@ def double_mask_data(data, mask_rate):
     
     return data0, data1
 
-def mask_edge_data(data, mask_rate):
+def mask_edge_data(data, mask_rate=0.15):
     data = _clone_data(data)
     data = _mask_edge_data(data, mask_rate)
     

@@ -6,7 +6,8 @@ import numpy as np
 import torch
 import torch_geometric
 
-from group_dataset import GroupDataset, collate
+from group_dataset import GroupDataset, double_collate
+from data.transform import double_mask_data
 from data.splitter import random_split
 from scheme.group_contrast import (
     GroupContrastScheme,
@@ -22,24 +23,27 @@ from tqdm import tqdm
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", type=str, default="zinc_group")
-    parser.add_argument("--num_epochs", type=int, default=100)
+    parser.add_argument("--num_epochs", type=int, default=10)
     parser.add_argument("--log_freq", type=float, default=10)
 
     parser.add_argument("--scheme", type=str, default="group_contrast")
     parser.add_argument("--transform", type=str, default="none")
 
-    parser.add_argument("--batch_size", type=int, default=1024)
+    parser.add_argument("--batch_size", type=int, default=512)
     parser.add_argument("--num_workers", type=int, default=8)
 
     parser.add_argument("--num_layers", type=int, default=5)
     parser.add_argument("--emb_dim", type=int, default=300)
-    parser.add_argument("--drop_rate", type=float, default=0.0)
 
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--run_tag", type=str, default="")
     parser.add_argument("--use_neptune", action="store_true")
     
-    parser.add_argument("--reweight", action="store_true")
+    parser.add_argument("--atom_contrast", action="store_true")
+    parser.add_argument("--group_contrast", action="store_true")
+    parser.add_argument("--self_contrast", action="store_true")
+    parser.add_argument("--drop_rate", type=float, default=0.0)
+    parser.add_argument("--logit_sample_ratio", type=float, default=0.5)
 
     args = parser.parse_args()
 
@@ -48,9 +52,14 @@ def main():
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(0)
 
-    if args.scheme == "group_contrast":
-        scheme = GroupContrastScheme()
-        model = GroupContrastModel(reweight=args.reweight, drop_rate=args.drop_rate)
+    scheme = GroupContrastScheme()
+    model = GroupContrastModel(
+        atom_contrast=args.atom_contrast, 
+        group_contrast=args.group_contrast, 
+        self_contrast=args.self_contrast, 
+        logit_sample_ratio=args.logit_sample_ratio,
+        drop_rate=args.drop_rate
+        )
 
     print("Loading model...")
     model = model.cuda()
@@ -58,19 +67,18 @@ def main():
         [param for param in model.parameters() if param.requires_grad], lr=args.lr
     )
 
+    transform = double_mask_data
     print("Loading dataset...")
     dataset = GroupDataset(
-        "../resource/dataset/" + args.dataset, dataset=args.dataset, transform=None,
+        "../resource/dataset/" + args.dataset, dataset=args.dataset, transform=transform,
     )
-    
-    print(len(dataset))
-    
+        
     loader = torch.utils.data.DataLoader(
         dataset,
         batch_size=args.batch_size,
         shuffle=True,
         num_workers=args.num_workers,
-        collate_fn=collate,
+        collate_fn=double_collate,
     )
 
     if args.use_neptune:
@@ -88,9 +96,9 @@ def main():
         if args.use_neptune:
             run[f"epoch"].log(epoch)
 
-        for batch in tqdm(loader):
+        for batch0, batch1 in tqdm(loader):
             step += 1
-            train_statistics = scheme.train_step(batch, model, optim)
+            train_statistics = scheme.train_step(batch0, batch1, model, optim)
             print(train_statistics)
             if step % args.log_freq == 0:
                 for key, val in train_statistics.items():
@@ -99,11 +107,11 @@ def main():
         
         if args.use_neptune:
             torch.save(
-                model.gnn.state_dict(), f"../resource/result/{run_tag}/model_{epoch:02d}.pt"
+                model.encoder.state_dict(), f"../resource/result/{run_tag}/model_{epoch:02d}.pt"
             )
 
     if args.use_neptune:
-        torch.save(model.gnn.state_dict(), f"../resource/result/{run_tag}/model.pt")
+        torch.save(model.encoder.state_dict(), f"../resource/result/{run_tag}/model.pt")
         run.stop()
 
 
