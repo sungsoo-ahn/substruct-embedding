@@ -62,7 +62,7 @@ def collate(data_list):
     return batch.contiguous()
 
 
-class GroupDataset(InMemoryDataset):
+class GroupDataset(MoleculeDataset):
     def __init__(self,
                  root,
                  transform=None,

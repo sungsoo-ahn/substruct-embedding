@@ -63,34 +63,8 @@ def main():
         "../resource/dataset/" + args.dataset, dataset=args.dataset, transform=None,
     )
     
-    train_dataset, eval_dataset, _ = random_split(
-        dataset,
-        null_value=0,
-        frac_train=0.95,
-        frac_valid=0.05,
-        frac_test=0.0,
-    )
+    print(len(dataset))
     
-    print(len(train_dataset))
-    print(len(eval_dataset))    
-    
-    train_loader = torch.utils.data.DataLoader(
-        train_dataset,
-        batch_size=args.batch_size,
-        shuffle=True,
-        num_workers=args.num_workers,
-        collate_fn=collate,
-    )
-    
-    eval_loader = torch.utils.data.DataLoader(
-        eval_dataset,
-        batch_size=args.batch_size,
-        shuffle=True,
-        num_workers=args.num_workers,
-        collate_fn=collate,
-    )
-
-
     loader = torch.utils.data.DataLoader(
         dataset,
         batch_size=args.batch_size,
@@ -114,7 +88,7 @@ def main():
         if args.use_neptune:
             run[f"epoch"].log(epoch)
 
-        for batch in train_loader:
+        for batch in tqdm(loader):
             step += 1
             train_statistics = scheme.train_step(batch, model, optim)
             print(train_statistics)
@@ -123,13 +97,6 @@ def main():
                     if args.use_neptune:
                         run[f"train/{key}"].log(val)
         
-        eval_statistics = scheme.eval_epoch(eval_loader, model)
-        print("eval")
-        print(eval_statistics)
-        for key, val in eval_statistics.items():
-            if args.use_neptune:
-                run[f"eval/{key}"].log(val)
-
         if args.use_neptune:
             torch.save(
                 model.gnn.state_dict(), f"../resource/result/{run_tag}/model_{epoch:02d}.pt"
