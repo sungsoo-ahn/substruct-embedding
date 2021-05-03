@@ -8,7 +8,6 @@ echo $MODEL_PATH
 
 python pretrain_group.py \
 --use_neptune \
---drop_rate 0.5 \
 --run_tag $RUN_TAG
 
 python finetune.py \

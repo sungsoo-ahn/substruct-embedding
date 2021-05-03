@@ -1,15 +1,14 @@
 #!/bin/bash
 
-RUN_TAG="scaffold_contrast1"
+RUN_TAG="group_contrast0"
 MODEL_PATH="../resource/result/${RUN_TAG}/model.pt"
 
 echo $RUN_TAG
 echo $MODEL_PATH
 
-python pretrain_scaffold.py \
+python pretrain_group.py \
 --use_neptune \
---scheme graph_contrast \
---mask_scaffold_features \
+--reweight \
 --run_tag $RUN_TAG
 
 python finetune.py \
