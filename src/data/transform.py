@@ -15,7 +15,10 @@ def _clone_data(data):
         )
 
     new_data.atom_y = data.x[:, 0]
-    new_data.group_y = data.group_y
+    try:
+        new_data.group_y = data.group_y
+    except:
+        pass
     
     return new_data
 

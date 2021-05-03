@@ -7,7 +7,7 @@ def compute_accuracy(pred, target):
 
 
 def get_contrastive_logits_and_labels(features):
-    similarity_matrix = torch.matmul(features, features.T)
+    similarity_matrix = torch.matmul(features, features.t())
 
     batch_size = similarity_matrix.size(0) // 2
 
@@ -15,12 +15,12 @@ def get_contrastive_logits_and_labels(features):
     labels = (labels.unsqueeze(0) == labels.unsqueeze(1)).float()
     labels = labels.to(features.device)
 
-    mask = torch.eye(labels.shape[0], dtype=torch.bool).to(features.device)
+    mask = (torch.eye(labels.shape[0]) > 0.5).to(features.device)
     labels = labels[~mask].view(labels.shape[0], -1)
     similarity_matrix = similarity_matrix[~mask].view(similarity_matrix.shape[0], -1)
 
-    positives = similarity_matrix[labels.bool()].view(labels.shape[0], -1)
-    negatives = similarity_matrix[~labels.bool()].view(similarity_matrix.shape[0], -1)
+    positives = similarity_matrix[(labels > 0.5)].view(labels.shape[0], -1)
+    negatives = similarity_matrix[(labels < 0.5)].view(similarity_matrix.shape[0], -1)
 
     logits = torch.cat([positives, negatives], dim=1)
     labels = torch.zeros(logits.shape[0], dtype=torch.long).to(features.device)
