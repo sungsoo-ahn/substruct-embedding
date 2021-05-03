@@ -112,7 +112,7 @@ class GroupContrastModel(torch.nn.Module):
 
         labels = labels.contiguous().view(-1, 1)
         mask = torch.eq(labels, labels.t()).float().cuda()
-        
+
         # mask-out self-contrast cases
         logits_mask = torch.scatter(
             torch.ones_like(mask), 1, torch.arange(mask.size(0)).view(-1, 1).cuda(), 0
@@ -126,15 +126,15 @@ class GroupContrastModel(torch.nn.Module):
         
         # compute log_prob
         exp_logits = torch.exp(logits) * logits_mask
-        
+
         log_prob = logits - torch.log(exp_logits.sum(1, keepdim=True))
-        
+
         # compute mean of log-likelihood over positive
         mean_log_prob_pos = (mask * log_prob).sum(1) / mask.sum(1)
-                
+
         # loss
         loss = -self.temperature * mean_log_prob_pos.mean()
-        
+
         return loss
 
 class GroupContrastScheme:

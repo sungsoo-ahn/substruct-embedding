@@ -72,7 +72,13 @@ def main():
     dataset = GroupDataset(
         "../resource/dataset/" + args.dataset, dataset=args.dataset, transform=transform,
     )
+<<<<<<< HEAD
         
+=======
+
+    print(len(dataset))
+
+>>>>>>> c9dfb8d3debfb75943336bc0b4cacd82b640db1c
     loader = torch.utils.data.DataLoader(
         dataset,
         batch_size=args.batch_size,
@@ -104,7 +110,7 @@ def main():
                 for key, val in train_statistics.items():
                     if args.use_neptune:
                         run[f"train/{key}"].log(val)
-        
+
         if args.use_neptune:
             torch.save(
                 model.encoder.state_dict(), f"../resource/result/{run_tag}/model_{epoch:02d}.pt"

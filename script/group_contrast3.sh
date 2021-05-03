@@ -7,9 +7,10 @@ echo $RUN_TAG
 echo $MODEL_PATH
 
 python pretrain_group.py \
---use_neptune \
---reweight \
+--group_contrast \
+--atom_contrast \
 --drop_rate 0.5 \
+--use_neptune \
 --run_tag $RUN_TAG
 
 python finetune.py \
