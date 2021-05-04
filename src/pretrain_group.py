@@ -72,7 +72,7 @@ def main():
     dataset = GroupDataset(
         "../resource/dataset/" + args.dataset, dataset=args.dataset, transform=transform,
     )
-
+        
     loader = torch.utils.data.DataLoader(
         dataset,
         batch_size=args.batch_size,
