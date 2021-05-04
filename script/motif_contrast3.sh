@@ -10,6 +10,7 @@ echo $SUPERVISED_MODEL_PATH
 
 python pretrain_motif.py \
 --choose_one_group \
+--batch_size 1024 \
 --use_neptune \
 --run_tag $RUN_TAG
 
@@ -28,4 +29,3 @@ python finetune.py \
 --datasets "bace" "bbbp" "sider" "clintox" "tox21" "toxcast" "hiv" "muv"\
 --model_path $SUPERVISED_MODEL_PATH \
 --run_tag $RUN_TAG
-
