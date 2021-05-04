@@ -41,6 +41,7 @@ def collate(data_list):
     return batch.contiguous()
 
 def collate_twice(data_list):
+    data_list = [data for data in data_list if data[0] is not None]
     data_list0, data_list1 = map(list, zip(*data_list))
     return collate(data_list0), collate(data_list1)
 

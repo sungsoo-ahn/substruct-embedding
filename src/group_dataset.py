@@ -16,6 +16,7 @@ from data.dataset import MoleculeDataset, mol_to_graph_data_obj_simple
 from data.splitter import generate_scaffold
 
 def double_collate(data_list):
+    data_list = [data for data in data_list if data[0] is not None]
     data_list0, data_list1 = zip(*data_list)
     batch0 = collate(data_list0)
     batch1 = collate(data_list1)

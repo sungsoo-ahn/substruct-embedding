@@ -7,18 +7,92 @@ from torch_cluster import random_walk
 num_atom_types = 120
 num_bond_types = 6
 
+def subgraph(subset, edge_index, edge_attr=None, relabel_nodes=False,
+             num_nodes=None):
+    
+    device = edge_index.device
+
+    if isinstance(subset, list) or isinstance(subset, tuple):
+        subset = torch.tensor(subset, dtype=torch.long)
+
+    if subset.dtype == torch.bool or subset.dtype == torch.uint8:
+        n_mask = subset
+
+        if relabel_nodes:
+            n_idx = torch.zeros(n_mask.size(0), dtype=torch.long,
+                                device=device)
+            n_idx[subset] = torch.arange(subset.sum().item(), device=device)
+    else:
+        n_mask = torch.zeros(num_nodes, dtype=torch.bool)
+        n_mask[subset] = 1
+
+        if relabel_nodes:
+            n_idx = torch.zeros(num_nodes, dtype=torch.long, device=device)
+            n_idx[subset] = torch.arange(subset.size(0), device=device)
+
+    mask = (n_mask[edge_index[0]].long() + n_mask[edge_index[1]].long() == 2)
+    edge_index = edge_index[:, mask]
+    edge_attr = edge_attr[mask] if edge_attr is not None else None
+
+    if relabel_nodes:
+        edge_index = n_idx[edge_index]
+
+    return edge_index, edge_attr
+
 def _clone_data(data):
     new_data = Data(
-        x=data.x, 
-        edge_index=data.edge_index,
-        edge_attr=data.edge_attr,
+        x=data.x.clone(), 
+        edge_index=data.edge_index.clone(),
+        edge_attr=data.edge_attr.clone(),
         )
 
     new_data.atom_y = data.x[:, 0]
     try:
-        new_data.group_y = data.group_y
+        new_data.group_y = data.group_y.clone()
     except:
         pass
+    
+    return new_data
+
+def _disconnect_motif(data):
+    subgraph_nodes = (data.group_y == sample_y).nonzero().squeeze(1)
+    
+    edge_mask = data.group_y[data.edge_index[0]] == data.group_y[data.edge_index[1]]
+    edge_index = data.edge_index[:, edge_mask]
+    edge_attr = data.edge_attr[edge_mask, :]
+    subgraph_x = data.x[subgraph_nodes]
+    new_data = Data(
+        x=subgraph_x,
+        edge_index=edge_index,
+        edge_attr=edge_attr,
+    )
+    new_data.group_y = data.group_y
+    
+    return new_data
+
+
+def _extract_motif(data, drop_scaffold=True):
+    if drop_scaffold:
+        if data.group_y.max().item() == 0:
+            return None
+        
+        sample_y = random.choice(range(data.group_y.max().item())) + 1
+    else:
+        sample_y = random.choice(range(data.group_y.max().item() + 1))
+        
+    subgraph_nodes = (data.group_y == sample_y).nonzero().squeeze(1)
+         
+    edge_index, edge_attr = subgraph(
+        subgraph_nodes, data.edge_index, data.edge_attr, relabel_nodes=True, num_nodes=data.x.size(0)
+        )
+    
+    subgraph_x = data.x[subgraph_nodes]
+    new_data = Data(
+        x=subgraph_x,
+        edge_index=edge_index,
+        edge_attr=edge_attr,
+    )
+    new_data.group_y = data.group_y[subgraph_nodes]
     
     return new_data
 
@@ -90,3 +164,10 @@ def mask_edge_data(data, mask_rate=0.15):
     data = _mask_edge_data(data, mask_rate)
     
     return data
+
+def extract_motif_data(data, drop_scaffold=False):
+    motif_data = _extract_motif(_clone_data(data), drop_scaffold=drop_scaffold)
+    if motif_data is None:
+        return None, None
+    
+    return data, motif_data
