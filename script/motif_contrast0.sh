@@ -8,7 +8,7 @@ echo $RUN_TAG
 echo $MODEL_PATH
 echo $SUPERVISED_MODEL_PATH
 
-python pretrain_motif.py \
+python pretrain.py \
 --use_neptune \
 --run_tag $RUN_TAG
 

@@ -8,7 +8,7 @@ echo $RUN_TAG
 echo $MODEL_PATH
 echo $SUPERVISED_MODEL_PATH
 
-python pretrain_motif.py \
+python pretrain.py \
 --choose_one_group \
 --batch_size 1024 \
 --use_neptune \
