@@ -91,7 +91,7 @@ def main():
 
     parser.add_argument("--run_tag", type=str, default="")
     parser.add_argument("--split_type", type=str, default="scaffold")
-    parser.add_argument("--num_runs", type=int, default=5)
+    parser.add_argument("--num_runs", type=int, default=3)
 
     args = parser.parse_args()
 
@@ -102,8 +102,10 @@ def main():
     )
     run["parameters"] = vars(args)
 
-    dataset2best_vali_acc_list = {dataset: [] for dataset in args.datasets}
-    dataset2best_test_acc_list = {dataset: [] for dataset in args.datasets}
+    dataset2vali_best_acc_list = {dataset: [] for dataset in args.datasets}
+    dataset2test_best_acc_list = {dataset: [] for dataset in args.datasets}
+    dataset2last_vali_acc_list = {dataset: [] for dataset in args.datasets}
+    dataset2last_test_acc_list = {dataset: [] for dataset in args.datasets}
 
     for runseed in range(args.num_runs):
         for dataset_name in args.datasets:
@@ -194,42 +196,53 @@ def main():
             optimizer = optim.Adam(model_param_group, lr=args.lr)
             scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.3)
             
-            best_vali_acc = 0.0
-            best_test_acc = 0.0
+            vali_best_acc = 0.0
+            test_best_acc = 0.0
             for epoch in range(args.num_epochs):                
                 train_statistics = train(model, optimizer, train_loader, device)
                 for key, val in train_statistics.items():
-                    run[f"{dataset_name}/train/{key}/run{runseed}"].log(val)
+                    run[f"{dataset_name}/run{runseed}/train/{key}"].log(val)
 
                 scheduler.step()
 
                 train_statistics = evaluate(model, train_loader, device)
                 for key, val in train_statistics.items():
-                    run[f"{dataset_name}/train/{key}/run{runseed}"].log(val)
+                    run[f"{dataset_name}/run{runseed}/train/{key}"].log(val)
                     
                 vali_statistics = evaluate(model, vali_loader, device)
                 for key, val in vali_statistics.items():
-                    run[f"{dataset_name}/vali/{key}/run{runseed}"].log(val)
+                    run[f"{dataset_name}/run{runseed}/vali/{key}"].log(val)
 
                 test_statistics = evaluate(model, test_loader, device)
                 for key, val in test_statistics.items():
-                    run[f"{dataset_name}/test/{key}/run{runseed}"].log(val)
+                    run[f"{dataset_name}/run{runseed}/test/{key}"].log(val)
 
-                if vali_statistics["acc"] > best_vali_acc:
-                    best_vali_acc = vali_statistics["acc"]
-                    best_test_acc = test_statistics["acc"]
+                if vali_statistics["acc"] > vali_best_acc:
+                    vali_best_acc = vali_statistics["acc"]
+                    test_best_acc = test_statistics["acc"]
 
-                run[f"{dataset_name}/best_vali/run{runseed}"].log(best_vali_acc)
-                run[f"{dataset_name}/best_test/run{runseed}"].log(best_test_acc)
+                run[f"{dataset_name}/run{runseed}/vali/best_acc"].log(vali_best_acc)
+                run[f"{dataset_name}/run{runseed}/test/best_acc"].log(test_best_acc)
 
-            dataset2best_vali_acc_list[dataset_name].append(best_vali_acc)
-            dataset2best_test_acc_list[dataset_name].append(best_test_acc)
+            dataset2last_vali_acc_list[dataset_name].append(vali_statistics["acc"])
+            dataset2last_test_acc_list[dataset_name].append(test_statistics["acc"])
+            dataset2vali_best_acc_list[dataset_name].append(vali_best_acc)
+            dataset2test_best_acc_list[dataset_name].append(test_best_acc)
+            
+            run[f"{dataset_name}/run_avg/test/last_acc"] = np.mean(
+                dataset2last_test_acc_list[dataset_name]
+                )
+            run[f"{dataset_name}/run_avg/test/best_acc"] = np.mean(
+                dataset2test_best_acc_list[dataset_name]
+                )
 
-            run[f"{dataset_name}/avg_vali"].log(np.mean(dataset2best_vali_acc_list[dataset_name]))
-            run[f"{dataset_name}/avg_test"].log(np.mean(dataset2best_test_acc_list[dataset_name]))
-        
-        run[f"avg_val"] = np.mean([np.mean(val) for val in dataset2best_vali_acc_list.values()])
-        run[f"avg_test"] = np.mean([np.mean(val) for val in dataset2best_test_acc_list.values()])
+        run[f"dataset_avg/run_avg/test/last_acc"] = np.mean(
+            [np.mean(val) for val in dataset2last_test_acc_list.values()]
+            )
+        run[f"dataset_avg/run_avg/test/best_acc"] = np.mean(
+            [np.mean(val) for val in dataset2test_best_acc_list.values()]
+            )
+
         
 if __name__ == "__main__":
     main()

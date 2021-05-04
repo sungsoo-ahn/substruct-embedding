@@ -71,17 +71,22 @@ def _disconnect_motif(data):
     return new_data
 
 
-def _extract_motif(data, drop_scaffold=True):
-    if drop_scaffold:
-        if data.group_y.max().item() == 0:
-            return None
-        
-        sample_y = random.choice(range(data.group_y.max().item())) + 1
+def _extract_motif(data, choose_one_group=False, include_scaffold=False):
+    if choose_one_group:
+        if include_scaffold:
+            sample_y = random.choice(range(data.group_y.max().item() + 1))
+        else:
+            if data.group_y.max().item() == 0:
+                return None
+            sample_y = random.choice(range(data.group_y.max().item())) + 1
+            
+        subgraph_nodes = (data.group_y == sample_y).nonzero().squeeze(1)
     else:
-        sample_y = random.choice(range(data.group_y.max().item() + 1))
+        subgraph_nodes = (data.group_y != 0).nonzero().squeeze(1)
         
-    subgraph_nodes = (data.group_y == sample_y).nonzero().squeeze(1)
-         
+    if subgraph_nodes.size(0) == 0:
+        return None
+             
     edge_index, edge_attr = subgraph(
         subgraph_nodes, data.edge_index, data.edge_attr, relabel_nodes=True, num_nodes=data.x.size(0)
         )
@@ -144,6 +149,36 @@ def _mask_edge_data(data, mask_rate):
     return data
 
 
+def _drop_data(data, drop_ratio):
+    #drop_nodes = list(sorted(random.sample(range(num_nodes), num_drop_nodes)))    
+    #if data.group_y.max().item() == 0:
+    #    return None
+    
+    #num_nodes = data.x.size(0)
+    #sample_y = random.choice(range(data.group_y.max().item())) + 1
+    #drop_nodes = (data.group_y == sample_y).nonzero().squeeze(1)
+    #subgraph_nodes = [node for node in range(num_nodes) if node not in drop_nodes]
+    
+    num_nodes = data.x.size(0)
+    
+    swap_node = random.choice(range(num_nodes))
+    before_swap_atom = data.x[swap_node, 0].item()
+    swap_choice = [5, 6, 7, 15, 34]
+    swap_choice = [atom for atom in swap_choice if atom != before_swap_atom]
+    after_swap_atom = random.choice(swap_choice)
+
+    x = data.x
+    
+    edge_index = data.edge_index
+    edge_attr = data.edge_attr    
+    group_y = data.group_y
+        
+    data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr)
+    data.group_y = group_y
+    
+    return data
+    
+
 def mask_data(data, mask_rate=0.15):
     data = _clone_data(data)
     data = _mask_data(data, mask_rate)
@@ -162,11 +197,12 @@ def double_mask_data(data, mask_rate=0.15):
 def mask_edge_data(data, mask_rate=0.15):
     data = _clone_data(data)
     data = _mask_edge_data(data, mask_rate)
-    
     return data
 
-def extract_motif_data(data, drop_scaffold=False):
-    motif_data = _extract_motif(_clone_data(data), drop_scaffold=drop_scaffold)
+def extract_motif_data(data, choose_one_group=False, include_scaffold=False):
+    motif_data = _extract_motif(
+        _clone_data(data), choose_one_group=choose_one_group, include_scaffold=include_scaffold
+        )
     if motif_data is None:
         return None, None
     
