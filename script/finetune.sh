@@ -9,6 +9,6 @@ echo $RUN_TAG
 #--model_path $MODEL_PATH \
 
 python finetune.py \
---datasets "bace" "bbbp" "sider" "clintox" "tox21" "toxcast" "hiv" "muv" \
+--datasets "hiv" "muv" \
 --model_path $MODEL_PATH \
 --run_tag $RUN_TAG
