@@ -12,6 +12,6 @@ python pretrain_group.py \
 --run_tag $RUN_TAG
 
 python finetune.py \
---datasets "bace" "bbbp" "sider" "clintox" "tox21" "toxcast" \
+--datasets "bace" "bbbp" "sider" "clintox" "tox21" "toxcast" "hiv" "muv" \
 --model_path $MODEL_PATH \
 --run_tag $RUN_TAG

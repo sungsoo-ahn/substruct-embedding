@@ -23,7 +23,7 @@ from tqdm import tqdm
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", type=str, default="zinc_group")
-    parser.add_argument("--num_epochs", type=int, default=10)
+    parser.add_argument("--num_epochs", type=int, default=20)
     parser.add_argument("--log_freq", type=float, default=10)
 
     parser.add_argument("--scheme", type=str, default="group_contrast")
@@ -38,7 +38,7 @@ def main():
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--run_tag", type=str, default="")
     parser.add_argument("--use_neptune", action="store_true")
-    
+
     parser.add_argument("--atom_contrast", action="store_true")
     parser.add_argument("--group_contrast", action="store_true")
     parser.add_argument("--self_contrast", action="store_true")
@@ -54,9 +54,9 @@ def main():
 
     scheme = GroupContrastScheme()
     model = GroupContrastModel(
-        atom_contrast=args.atom_contrast, 
-        group_contrast=args.group_contrast, 
-        self_contrast=args.self_contrast, 
+        atom_contrast=args.atom_contrast,
+        group_contrast=args.group_contrast,
+        self_contrast=args.self_contrast,
         logit_sample_ratio=args.logit_sample_ratio,
         drop_rate=args.drop_rate
         )
@@ -72,13 +72,7 @@ def main():
     dataset = GroupDataset(
         "../resource/dataset/" + args.dataset, dataset=args.dataset, transform=transform,
     )
-<<<<<<< HEAD
-        
-=======
 
-    print(len(dataset))
-
->>>>>>> c9dfb8d3debfb75943336bc0b4cacd82b640db1c
     loader = torch.utils.data.DataLoader(
         dataset,
         batch_size=args.batch_size,
@@ -102,7 +96,7 @@ def main():
         if args.use_neptune:
             run[f"epoch"].log(epoch)
 
-        for batch0, batch1 in tqdm(loader):
+        for batch0, batch1 in (loader):
             step += 1
             train_statistics = scheme.train_step(batch0, batch1, model, optim)
             print(train_statistics)

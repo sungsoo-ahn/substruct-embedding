@@ -10,11 +10,10 @@ python pretrain_group.py \
 --group_contrast \
 --atom_contrast \
 --self_contrast \
---drop_rate 0.5 \
 --use_neptune \
 --run_tag $RUN_TAG
 
 python finetune.py \
---datasets "bace" "bbbp" "sider" "clintox" "tox21" "toxcast" \
+--datasets "bace" "bbbp" "sider" "clintox" "tox21" "toxcast" "hiv" "muv" \
 --model_path $MODEL_PATH \
 --run_tag $RUN_TAG
