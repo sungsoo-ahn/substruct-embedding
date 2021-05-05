@@ -6,10 +6,10 @@ MODEL_PATH="../resource/result/${RUN_TAG}/model.pt"
 echo $RUN_TAG
 echo $MODEL_PATH
 
-python pretrain_motif.py \
---drop_scaffold \
---use_neptune \
---run_tag $RUN_TAG
+#python pretrain_motif.py \
+#--drop_scaffold \
+#--use_neptune \
+#--run_tag $RUN_TAG
 
 python finetune.py \
 --datasets "bace" "bbbp" "sider" "clintox" "tox21" "toxcast" \

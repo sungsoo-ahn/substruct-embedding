@@ -7,6 +7,8 @@ echo $RUN_TAG
 echo $MODEL_PATH
 
 python pretrain_motif.py \
+--num_epochs 20 \
+--drop_scaffold \
 --use_neptune \
 --run_tag $RUN_TAG
 
