@@ -71,19 +71,26 @@ def _disconnect_motif(data):
     return new_data
 
 
-def _extract_motif(data, drop_scaffold=True):
-    if drop_scaffold:
-        if data.group_y.max().item() == 0:
-            return None
-        
-        sample_y = random.choice(range(data.group_y.max().item())) + 1
+def _extract_motif(data, keep_all, drop_scaffold):
+    if keep_all:
+        subgraph_nodes = (data.group_y != 0)
     else:
-        sample_y = random.choice(range(data.group_y.max().item() + 1))
-        
-    subgraph_nodes = (data.group_y == sample_y).nonzero().squeeze(1)
+        if drop_scaffold:
+            if data.group_y.max().item() == 0:
+                return None
+            
+            sample_y = random.choice(range(data.group_y.max().item())) + 1
+        else:
+            sample_y = random.choice(range(data.group_y.max().item() + 1))
+            
+        subgraph_nodes = (data.group_y == sample_y).nonzero().squeeze(1)
          
     edge_index, edge_attr = subgraph(
-        subgraph_nodes, data.edge_index, data.edge_attr, relabel_nodes=True, num_nodes=data.x.size(0)
+        subgraph_nodes, 
+        data.edge_index, 
+        data.edge_attr, 
+        relabel_nodes=True, 
+        num_nodes=data.x.size(0)
         )
     
     subgraph_x = data.x[subgraph_nodes]
@@ -165,8 +172,8 @@ def mask_edge_data(data, mask_rate=0.15):
     
     return data
 
-def extract_motif_data(data, drop_scaffold=False):
-    motif_data = _extract_motif(_clone_data(data), drop_scaffold=drop_scaffold)
+def extract_motif_data(data, keep_all, drop_scaffold):
+    motif_data = _extract_motif(_clone_data(data), keep_all, drop_scaffold)
     if motif_data is None:
         return None, None
     

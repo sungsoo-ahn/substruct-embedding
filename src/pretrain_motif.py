@@ -39,6 +39,7 @@ def main():
     parser.add_argument("--run_tag", type=str, default="")
     parser.add_argument("--use_neptune", action="store_true")
     
+    parser.add_argument("--keep_all", action="store_true")
     parser.add_argument("--drop_scaffold", action="store_true")
     
     args = parser.parse_args()
@@ -57,7 +58,7 @@ def main():
         [param for param in model.parameters() if param.requires_grad], lr=args.lr
     )
 
-    transform = lambda data: extract_motif_data(data, args.drop_scaffold)
+    transform = lambda data: extract_motif_data(data, args.keep_all, args.drop_scaffold)
     print("Loading dataset...")
     dataset = GroupDataset(
         "../resource/dataset/" + args.dataset, dataset=args.dataset, transform=transform,
@@ -86,10 +87,10 @@ def main():
         if args.use_neptune:
             run[f"epoch"].log(epoch)
 
-        for batch0, batch1 in tqdm(loader):
+        for batch0, batch1 in (loader):
             step += 1
             train_statistics = scheme.train_step(batch0, batch1, model, optim)
-            print(train_statistics)
+            #print(train_statistics)
             if step % args.log_freq == 0:
                 for key, val in train_statistics.items():
                     if args.use_neptune:

@@ -17,17 +17,17 @@ class MotifContrastiveModel(torch.nn.Module):
         self.criterion = torch.nn.CrossEntropyLoss()
 
         self.encoder = GNN(self.num_layers, self.emb_dim, drop_ratio=self.drop_rate)
-        self.projector = torch.nn.Linear(self.emb_dim, self.emb_dim)
+        #self.projector = torch.nn.Linear(self.emb_dim, self.emb_dim)
 
     def compute_logits_and_labels(self, batch0, batch1):
         out = self.encoder(batch0.x, batch0.edge_index, batch0.edge_attr)
         out = global_mean_pool(out, batch0.batch)
         graph_features0 = torch.nn.functional.normalize(out, p=2, dim=1)
-        out = self.projector(out)
+        #out = self.projector(out)
 
         out = self.encoder(batch1.x, batch1.edge_index, batch1.edge_attr)
         out = global_mean_pool(out, batch1.batch)
-        out = self.projector(out)
+        #out = self.projector(out)
         graph_features1 = torch.nn.functional.normalize(out, p=2, dim=1)
 
         logits = torch.mm(graph_features0, graph_features1.t())
