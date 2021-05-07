@@ -6,15 +6,9 @@ import numpy as np
 import torch
 import torch_geometric
 
-from group_dataset import GroupDataset, double_collate
-from data.transform import extract_motif_data
-from data.splitter import random_split
-from scheme.motif_contrast import (
-    MotifContrastiveScheme,
-    MotifContrastiveModel,
-)
-from evaluate_knn import get_eval_datasets, evaluate_knn
-
+from frag_dataset import FragDataset, double_collate
+from scheme import base
+from data.transform import fragment, sample_fragment, partition_fragment
 import neptune.new as neptune
 
 from tqdm import tqdm
@@ -22,11 +16,11 @@ from tqdm import tqdm
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", type=str, default="zinc_group")
+    parser.add_argument("--dataset", type=str, default="zinc_brics")
     parser.add_argument("--num_epochs", type=int, default=20)
     parser.add_argument("--log_freq", type=float, default=10)
 
-    parser.add_argument("--scheme", type=str, default="group_contrast")
+    parser.add_argument("--scheme", type=str, default="frag_node_contrast")
     parser.add_argument("--transform", type=str, default="none")
 
     parser.add_argument("--batch_size", type=int, default=256)
@@ -39,8 +33,7 @@ def main():
     parser.add_argument("--run_tag", type=str, default="")
     parser.add_argument("--use_neptune", action="store_true")
     
-    parser.add_argument("--keep_all", action="store_true")
-    parser.add_argument("--drop_scaffold", action="store_true")
+    parser.add_argument("--frag_p", type=float, default=0.1)
     
     args = parser.parse_args()
 
@@ -49,18 +42,30 @@ def main():
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(0)
 
-    scheme = MotifContrastiveScheme()
-    model = MotifContrastiveModel()
-
+    if args.scheme == "frag_node_contrast":
+        scheme = base.BaseScheme()
+        model = base.NodeContrastiveModel()
+        transform = lambda data: fragment(data, args.frag_p)
+    
+    elif args.scheme == "sample_frag_graph_contrast":
+        scheme = base.BaseScheme()
+        model = base.GraphContrastiveModel()
+        transform = lambda data: sample_fragment(data, args.frag_p)
+    
+    elif args.scheme == "partition_frag_graph_contrast":
+        scheme = base.BaseScheme()
+        model = base.GraphContrastiveModel()
+        transform = partition_fragment
+    
+    
     print("Loading model...")
     model = model.cuda()
     optim = torch.optim.Adam(
         [param for param in model.parameters() if param.requires_grad], lr=args.lr
     )
 
-    transform = lambda data: extract_motif_data(data, args.keep_all, args.drop_scaffold)
     print("Loading dataset...")
-    dataset = GroupDataset(
+    dataset = FragDataset(
         "../resource/dataset/" + args.dataset, dataset=args.dataset, transform=transform,
     )
         
@@ -87,7 +92,7 @@ def main():
         if args.use_neptune:
             run[f"epoch"].log(epoch)
 
-        for batch0, batch1 in (loader):
+        for batch0, batch1 in tqdm(loader):
             step += 1
             train_statistics = scheme.train_step(batch0, batch1, model, optim)
             #print(train_statistics)

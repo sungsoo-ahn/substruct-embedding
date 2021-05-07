@@ -36,23 +36,25 @@ def collate(data_list):
     
     cumsum_node = 0
     cumsum_edge = 0
-    cumsum_group = 0
+    #cumsum_frag = 0
 
     for i, data in enumerate(data_list):
         num_nodes = data.num_nodes
         batch.batch.append(torch.full((num_nodes, ), i, dtype=torch.long))
         
+        #num_frags = data.frag_y.max() + 1
         for key in data.keys:
             item = data[key]
             if key == 'edge_index':
                 item = item + cumsum_node
-            elif key == 'bricks_y':
-                item[item > -1] = item[item > -1] + cumsum_group
+            #elif key == 'frag_y':
+            #    item = item + cumsum_frag
                 
             batch[key].append(item)
 
         cumsum_node += num_nodes
         cumsum_edge += data.edge_index.shape[1]
+        #cumsum_frag += num_frags
         
         batch.batch_num_nodes.append(torch.tensor([num_nodes]))
 
@@ -62,13 +64,12 @@ def collate(data_list):
             )
     
     batch.batch_num_nodes = torch.cat(batch.batch_num_nodes, dim=0)
-    
     batch.batch = torch.cat(batch.batch, dim=-1)
     
     return batch.contiguous()
 
 
-class GroupDataset(InMemoryDataset):
+class FragDataset(InMemoryDataset):
     def __init__(self,
                  root,
                  transform=None,

@@ -1,8 +1,10 @@
 import random
 import numpy as np
+import networkx as nx
 import torch
 from torch_geometric.data import Data
 from torch_cluster import random_walk
+from torch_sparse import coalesce
 
 num_atom_types = 120
 num_bond_types = 6
@@ -39,52 +41,49 @@ def subgraph(subset, edge_index, edge_attr=None, relabel_nodes=False,
 
     return edge_index, edge_attr
 
-def _clone_data(data):
+def filter_adj(row, col, edge_attr, mask):
+    return row[mask], col[mask], None if edge_attr is None else edge_attr[mask]
+
+
+def dropout_adj(edge_index, edge_attr, p):
+    row, col = edge_index
+
+    row, col, edge_attr = filter_adj(row, col, edge_attr, row < col)
+
+    mask = edge_index.new_full((row.size(0), ), 1 - p, dtype=torch.float)
+    mask = torch.bernoulli(mask).to(torch.bool)
+
+    row, col, edge_attr = filter_adj(row, col, edge_attr, mask)
+
+    edge_index = torch.stack([torch.cat([row, col], dim=0), torch.cat([col, row], dim=0)], dim=0)
+    edge_attr = torch.cat([edge_attr, edge_attr], dim=0)
+    
+    return edge_index, edge_attr
+
+
+def get_undirected_edge_index(data):
+    return data.edge_index[(data.edge_index[0] < data.edge_index[1])]
+
+def get_intra_edge_mask(data):
+    edge_mask = (data.frag_y[data.edge_index[0]] == data.frag_y[data.edge_index[1]])
+    return edge_mask
+
+def get_inter_edge_mask(data):
+    edge_mask = (data.frag_y[data.edge_index[0]] != data.frag_y[data.edge_index[1]])
+    return edge_mask   
+
+def clone_data(data):
     new_data = Data(
         x=data.x.clone(), 
         edge_index=data.edge_index.clone(),
         edge_attr=data.edge_attr.clone(),
         )
 
-    new_data.atom_y = data.x[:, 0]
-    try:
-        new_data.group_y = data.group_y.clone()
-    except:
-        pass
-    
+    new_data.frag_y = data.frag_y.clone()
     return new_data
 
-def _disconnect_motif(data):
-    subgraph_nodes = (data.group_y == sample_y).nonzero().squeeze(1)
-    
-    edge_mask = data.group_y[data.edge_index[0]] == data.group_y[data.edge_index[1]]
-    edge_index = data.edge_index[:, edge_mask]
-    edge_attr = data.edge_attr[edge_mask, :]
-    subgraph_x = data.x[subgraph_nodes]
-    new_data = Data(
-        x=subgraph_x,
-        edge_index=edge_index,
-        edge_attr=edge_attr,
-    )
-    new_data.group_y = data.group_y
-    
-    return new_data
-
-
-def _extract_motif(data, keep_all, drop_scaffold):
-    if keep_all:
-        subgraph_nodes = (data.group_y != 0)
-    else:
-        if drop_scaffold:
-            if data.group_y.max().item() == 0:
-                return None
-            
-            sample_y = random.choice(range(data.group_y.max().item())) + 1
-        else:
-            sample_y = random.choice(range(data.group_y.max().item() + 1))
-            
-        subgraph_nodes = (data.group_y == sample_y).nonzero().squeeze(1)
-         
+def subgraph_data(data, subgraph_nodes):
+    x = data.x[subgraph_nodes]
     edge_index, edge_attr = subgraph(
         subgraph_nodes, 
         data.edge_index, 
@@ -92,89 +91,97 @@ def _extract_motif(data, keep_all, drop_scaffold):
         relabel_nodes=True, 
         num_nodes=data.x.size(0)
         )
-    
-    subgraph_x = data.x[subgraph_nodes]
     new_data = Data(
-        x=subgraph_x,
+        x=x,
         edge_index=edge_index,
         edge_attr=edge_attr,
     )
-    new_data.group_y = data.group_y[subgraph_nodes]
+    return new_data
+
+def _fragment(data, p):
+    if data.frag_y.max() == 0:
+        return data
+    
+    inter_edge_mask = data.frag_y[data.edge_index[0]] != data.frag_y[data.edge_index[1]]
+    inter_edge_index = data.edge_index[:, inter_edge_mask]
+    inter_edge_attr = data.edge_attr[inter_edge_mask, :]
+    
+    intra_edge_index = data.edge_index[:, ~inter_edge_mask]
+    intra_edge_attr = data.edge_attr[~inter_edge_mask, :]
+    
+    undirected_mask = (inter_edge_index[0] < inter_edge_index[1])
+    undirected_inter_edge_index = inter_edge_index[:, undirected_mask]
+    undirected_inter_edge_attr = inter_edge_attr[undirected_mask, :]
+    
+    num_idxs = undirected_inter_edge_index.size(1)
+    num_drops = max(int(p * num_idxs), 1)
+    drop_idxs = random.sample(range(num_idxs), num_drops)
+    drop_mask = torch.zeros(num_idxs).to(torch.bool)
+    drop_mask[drop_idxs] = True
+    keep_mask = (drop_mask == False)
+    
+    dropped_inter_edge_index = undirected_inter_edge_index[:, drop_mask]
+    dangling_nodes = torch.cat([dropped_inter_edge_index[0], dropped_inter_edge_index[1]], dim=0)
+    fake_nodes = torch.arange(dangling_nodes.size(0)) + data.x.size(0)
+    dangling_edge_index = torch.stack([dangling_nodes, fake_nodes], dim=0)
+    
+    row, col = torch.cat([undirected_inter_edge_index[:, keep_mask], dangling_edge_index], dim=1)
+    new_inter_edge_index = torch.stack(
+        [torch.cat([row, col], dim=0), torch.cat([col, row], dim=0)], dim=0
+        )
+    new_inter_edge_attr = torch.cat([
+        undirected_inter_edge_attr,
+        undirected_inter_edge_attr[drop_mask, :],
+        undirected_inter_edge_attr,
+        undirected_inter_edge_attr[drop_mask, :],
+        ], dim=0)
+
+    edge_index = torch.cat([intra_edge_index, new_inter_edge_index], dim=1)
+    edge_attr = torch.cat([intra_edge_attr, new_inter_edge_attr], dim=0)
+    num_nodes = data.x.size(0)
+    edge_index, edge_attr = coalesce(edge_index, edge_attr, num_nodes, num_nodes)
+
+    dangling_x = torch.zeros(dangling_nodes.size(0), data.x.size(1), dtype=torch.long)
+    x = torch.cat([data.x, dangling_x], dim=0)
+    
+    new_data = Data(
+        x=x,
+        edge_index=edge_index,
+        edge_attr=edge_attr,
+    )
     
     return new_data
 
-def _mask_data(data, mask_rate):    
-    num_nodes = data.x.size(0)
-    num_mask_nodes = max(int(mask_rate * num_nodes), 1)
-    mask_nodes = list(sorted(random.sample(range(num_nodes), num_mask_nodes)))    
+def _sample_fragment(data, p):
+    data = _fragment(data, p)
+    nx_graph = nx.Graph()
+    nx_graph.add_edges_from(data.edge_index.t().tolist())
+    subgraph_nodes = list(max(nx.connected_components(nx_graph), key=len))
     
-    mask = torch.zeros(num_nodes, dtype=torch.bool)
-    mask[mask_nodes] = True
-    
-    data.x[mask_nodes, 0] = 0
-    data.mask = mask
-    
-    return data
+    return subgraph_data(data, subgraph_nodes)
 
-def _mask_edge_data(data, mask_rate):
-    data.y = data.x[:, 0]
+def fragment(data, p):
+    data0 = _fragment(clone_data(data), p)
+    data1 = _fragment(clone_data(data), p)
     
-    sorted_edge_index = torch.sort(data.edge_index, dim=0)[0]
-    sorted_edge_atoms = data.y[sorted_edge_index]
-    edge_y = (
-        (num_atom_types ** 2) * data.edge_attr[:, 0] 
-        + num_atom_types * (sorted_edge_atoms[0] - 1) 
-        + (sorted_edge_atoms[1] - 1)
-        + num_atom_types
-    )
-    data.edge_y = edge_y
+    return data0, data1    
 
-    num_unique_edges = data.edge_attr.size(0) // 2
-    num_mask_edges = max(int(mask_rate * num_unique_edges), 1)
-    unique_mask_edges = list(sorted(list(random.sample(range(num_unique_edges), num_mask_edges))))
-    mask_edges = list(sorted([2*e for e in unique_mask_edges] + [2*e+1 for e in unique_mask_edges]))
-    mask_nodes = torch.unique(data.edge_index[0, mask_edges])
+def sample_fragment(data, p):
+    data0 = _sample_fragment(clone_data(data), p)
+    data1 = _sample_fragment(clone_data(data), p)
     
-    data.x[mask_nodes, 0] = 0
-    data.edge_attr[mask_edges, 0] = 0
-    
-    num_nodes = data.x.size(0)
-    num_edges = data.edge_attr.size(0)
-    node_mask = torch.zeros(num_nodes, dtype=torch.bool)
-    edge_mask = torch.zeros(num_edges, dtype=torch.bool)
-    node_mask[mask_nodes] = True
-    edge_mask[[2*e for e in unique_mask_edges]] = True
-    
-    data.mask = node_mask
-    data.edge_mask = edge_mask
-    
-    return data
+    return data0, data1    
 
-
-def mask_data(data, mask_rate=0.15):
-    data = _clone_data(data)
-    data = _mask_data(data, mask_rate)
+def partition_fragment(data):
+    if data.frag_y.max() == 0:
+        return data, data
     
-    return data
-
-def double_mask_data(data, mask_rate=0.15):
-    data0 = _clone_data(data)
-    data0 = _mask_data(data0, mask_rate)
+    data = _fragment(data, 0.0)
+    nx_graph = nx.Graph()
+    nx_graph.add_edges_from(data.edge_index.t().tolist())
+    subgraph_nodes0, subgraph_nodes1 = map(list, list(nx.connected_components(nx_graph)))
     
-    data1 = _clone_data(data)
-    data1 = _mask_data(data1, mask_rate)
+    data0 = subgraph_data(data, subgraph_nodes0)
+    data1 = subgraph_data(data, subgraph_nodes1)
     
     return data0, data1
-
-def mask_edge_data(data, mask_rate=0.15):
-    data = _clone_data(data)
-    data = _mask_edge_data(data, mask_rate)
-    
-    return data
-
-def extract_motif_data(data, keep_all, drop_scaffold):
-    motif_data = _extract_motif(_clone_data(data), keep_all, drop_scaffold)
-    if motif_data is None:
-        return None, None
-    
-    return data, motif_data
