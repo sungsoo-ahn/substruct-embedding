@@ -1,6 +1,6 @@
 #!/bin/bash
 
-RUN_TAG="motif_contrast0"
+RUN_TAG="frag_node_contrast2"
 MODEL_PATH="../resource/result/${RUN_TAG}/model.pt"
 SUPERVISED_MODEL_PATH="../resource/result/${RUN_TAG}/model_supervised.pt"
 
@@ -8,8 +8,11 @@ echo $RUN_TAG
 echo $MODEL_PATH
 echo $SUPERVISED_MODEL_PATH
 
-python pretrain_motif.py \
---drop_scaffold \
+python pretrain.py \
+--scheme frag_node_contrast \
+--frag_p 0.5 \
+--num_epochs 5 \
+--batch_size 64 \
 --use_neptune \
 --run_tag $RUN_TAG
 

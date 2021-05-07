@@ -1,9 +1,9 @@
 #!/bin/bash
-#SBATCH --job-name=motif
+#SBATCH --job-name=frag
 #SBATCH --partition=mbzuai
 #SBATCH --ntasks=1
 #SBATCH --time=24:00:00
-#SBATCH --output=/nfs/projects/mbzuai/peterahn/workspace/substruct-embedding/resource/result/motif.log
+#SBATCH --output=/nfs/projects/mbzuai/peterahn/workspace/substruct-embedding/resource/result/frag.log
 #SBATCH -N 1
 #SBATCH -G 1
 
@@ -14,4 +14,4 @@ srun \
   --no-container-mount-home \
   --container-mounts="/nfs/projects/mbzuai/peterahn/workspace/substruct-embedding:/substruct-embedding" \
   --container-workdir="/substruct-embedding/src" \
-  bash ../script/motif_contrast${1}.sh
+  bash ../script/${1}.sh
