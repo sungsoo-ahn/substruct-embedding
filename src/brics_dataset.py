@@ -100,10 +100,10 @@ def main():
             atom.SetIntProp("SourceAtomIdx", atom.GetIdx())
         
         frag_y = torch.full((data.x.size(0), ), -1).long()
-        fragged_smiles = BRICS.BreakBRICSBonds(mol)
-        fragged_smiles_list.append(fragged_smiles)
+        fragged_mol = BRICS.BreakBRICSBonds(mol)
+        fragged_smiles_list.append(Chem.MolToSmiles(fragged_mol))
         
-        frags = Chem.GetMolFrags(fragged_smiles, asMols=True)        
+        frags = Chem.GetMolFrags(fragged_mol, asMols=True)        
         for frag_idx, frag in enumerate(frags):
             atom_idxs = [
                 atom.GetIntProp("SourceAtomIdx") 
@@ -118,7 +118,7 @@ def main():
         
         data.frag_y = frag_y
         data_list.append(data)
-                
+                        
         #degrees = torch.zeros(data.x.size(0), 4, dtype=torch.long)
         #bond_onehots = torch.eq(
         #    data.edge_attr[:, 0].unsqueeze(1), torch.arange(4).long().unsqueeze(0)
