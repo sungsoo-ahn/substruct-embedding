@@ -27,7 +27,7 @@ def train(args, model, device, loader, optimizer):
 
     avg_loss = 0.0
 
-    for step, batch in enumerate(tqdm(loader)):
+    for step, batch in enumerate((loader)):
         batch = batch.to(device)
         pred = model(batch.x, batch.edge_index, batch.edge_attr, batch.batch)
         y = batch.y.view(pred.shape).to(torch.float64)
@@ -130,7 +130,7 @@ def main():
         os.makedirs(f"../resource/result/{run_tag}", exist_ok=True)
 
     for epoch in range(1, args.epochs+1):
-        print("====epoch " + str(epoch))
+        #print("====epoch " + str(epoch))
 
         loss = train(args, model, device, loader, optimizer)
         run["train/loss"].log(loss)

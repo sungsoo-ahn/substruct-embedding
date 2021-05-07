@@ -55,7 +55,7 @@ class GraphContrastiveModel(torch.nn.Module):
         features0 = torch.nn.functional.normalize(out, p=2, dim=1)
         
         out = self.encoder(batch1.x, batch1.edge_index, batch1.edge_attr)
-        out = global_mean_pool(out, batch0.batch)
+        out = global_mean_pool(out, batch1.batch)
         
         out = self.projector(out)
         features1 = torch.nn.functional.normalize(out, p=2, dim=1)
