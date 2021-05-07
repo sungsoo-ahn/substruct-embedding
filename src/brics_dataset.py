@@ -92,45 +92,49 @@ def main():
 
     scaffold2idxs = defaultdict(list)
     data_list = []
+    fragged_smiles_list = []
     for idx, smiles in tqdm(list(enumerate(smiles_list))):
         data = dataset[idx]
         mol = Chem.MolFromSmiles(smiles)
         for atom in mol.GetAtoms():
             atom.SetIntProp("SourceAtomIdx", atom.GetIdx())
         
-        brics_y = torch.full((data.x.size(0), ), -1).long()
-        fragmented=BRICS.BreakBRICSBonds(mol)
-        frags = Chem.GetMolFrags(fragmented, asMols=True)
+        frag_y = torch.full((data.x.size(0), ), -1).long()
+        fragged_smiles = BRICS.BreakBRICSBonds(mol)
+        fragged_smiles_list.append(fragged_smiles)
+        
+        frags = Chem.GetMolFrags(fragged_smiles, asMols=True)        
         for frag_idx, frag in enumerate(frags):
             atom_idxs = [
                 atom.GetIntProp("SourceAtomIdx") 
                 for atom in frag.GetAtoms() 
                 if atom.HasProp("SourceAtomIdx")
                 ]
-            brics_y[atom_idxs] = frag_idx
+            frag_y[atom_idxs] = frag_idx
         
-        if (brics_y < 0).any().item():
+        if (frag_y < 0).any().item():
+            print(frag_y)
             print("left out atoms")
-            
-        data.brics_y = brics_y
-        data_list.append(data)
         
+        data.frag_y = frag_y
+        data_list.append(data)
+                
         #degrees = torch.zeros(data.x.size(0), 4, dtype=torch.long)
         #bond_onehots = torch.eq(
         #    data.edge_attr[:, 0].unsqueeze(1), torch.arange(4).long().unsqueeze(0)
-        #    ).long()        
+        #    ).long()
         #batch, sorted_idxs = torch.sort(data.edge_index[0])
         #degrees = global_add_pool(bond_onehots[sorted_idxs], batch)
         #print(degrees)
-            
-    print(len(smiles_list))
-    print(len(data_list))        
     
     processed_dir = "../resource/dataset/zinc_brics"
     os.makedirs(processed_dir, exist_ok=True)
     
     data, slices = dataset.collate(data_list)
     torch.save((data, slices), os.path.join(processed_dir, "geometric_data_processed.pt"))                
+    
+    series = pd.Series(fragged_smiles_list)
+    series.to_csv(os.path.join(processed_dir, "fragged_smiles.csv"), index=False, header=False)
     
 if __name__ == "__main__":
     main()
