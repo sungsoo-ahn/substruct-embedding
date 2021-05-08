@@ -8,16 +8,16 @@ echo $RUN_TAG
 echo $MODEL_PATH
 echo $SUPERVISED_MODEL_PATH
 
-python pretrain.py \
---scheme frag_node_contrast \
---frag_p 0.1 \
---num_epochs 5 \
---batch_size 64 \
---use_neptune \
---run_tag $RUN_TAG
+#python pretrain.py \
+#--scheme frag_node_contrast \
+#--frag_p 0.1 \
+#--num_epochs 5 \
+#--batch_size 64 \
+#--use_neptune \
+#--run_tag $RUN_TAG
 
 python finetune.py \
---datasets "bace" "bbbp" "sider" "clintox" "tox21" "toxcast" "hiv" "muv"\
+--datasets "bace" "bbbp" "sider" "clintox" "tox21" "toxcast" "hiv" "muv" \
 --model_path $MODEL_PATH \
 --run_tag $RUN_TAG
 
@@ -28,6 +28,6 @@ python supervised.py \
 --run_tag $RUN_TAG
 
 python finetune.py \
---datasets "bace" "bbbp" "sider" "clintox" "tox21" "toxcast" "hiv" "muv"\
+--datasets "bace" "bbbp" "sider" "clintox" "tox21" "toxcast" "hiv" "muv" \
 --model_path $SUPERVISED_MODEL_PATH \
 --run_tag $RUN_TAG
