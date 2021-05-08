@@ -31,7 +31,7 @@ def get_contrastive_logits_and_labels(features):
 
 
 class GraphContrastiveModel(torch.nn.Module):
-    def __init__(self):
+    def __init__(self, zero_pool=False):
         super(GraphContrastiveModel, self).__init__()
         self.num_layers = 5
         self.emb_dim = 300
@@ -39,25 +39,45 @@ class GraphContrastiveModel(torch.nn.Module):
         self.proto_temperature = 0.01
         self.contrastive_temperature = 0.04
         self.criterion = torch.nn.CrossEntropyLoss()
-
+        self.zero_pool = zero_pool
+        
         self.encoder = GNN(self.num_layers, self.emb_dim, drop_ratio=self.drop_rate)
-        self.projector = torch.nn.Sequential(
+        self.projector0 = torch.nn.Sequential(
             torch.nn.Linear(self.emb_dim, self.emb_dim),
             torch.nn.ReLU(),
             torch.nn.Linear(self.emb_dim, self.emb_dim),
         )
+        
+        if self.zero_pool:
+            self.projector1 = torch.nn.Sequential(
+                torch.nn.Linear(self.emb_dim, self.emb_dim),
+                torch.nn.ReLU(),
+                torch.nn.Linear(self.emb_dim, self.emb_dim),
+            )
 
     def compute_logits_and_labels(self, batch0, batch1):
         out = self.encoder(batch0.x, batch0.edge_index, batch0.edge_attr)
-        out = global_mean_pool(out, batch0.batch)
+        out0 = global_mean_pool(out, batch0.batch)
+        out0 = self.projector0(out0)
+        if self.zero_pool:
+            out1 = out[batch0.x[:, 2] == 1]
+            out1 = self.projector1(out1)
+            out = out0 + out1
+        else:
+            out = out0
         
-        out = self.projector(out)
         features0 = torch.nn.functional.normalize(out, p=2, dim=1)
         
         out = self.encoder(batch1.x, batch1.edge_index, batch1.edge_attr)
-        out = global_mean_pool(out, batch1.batch)
-        
-        out = self.projector(out)
+        out0 = global_mean_pool(out, batch1.batch)
+        out0 = self.projector0(out0)
+        if self.zero_pool:
+            out1 = out[batch1.x[:, 2] == 1]
+            out1 = self.projector1(out1)
+            out = out0 + out1
+        else:
+            out = out0
+            
         features1 = torch.nn.functional.normalize(out, p=2, dim=1)
 
         features = torch.cat([features0, features1])

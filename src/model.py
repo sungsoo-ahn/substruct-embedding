@@ -230,6 +230,7 @@ class GNN(torch.nn.Module):
 
         self.x_embedding1 = torch.nn.Embedding(num_atom_type, emb_dim)
         self.x_embedding2 = torch.nn.Embedding(num_chirality_tag, emb_dim)
+        self.x_embedding3 = torch.nn.Embedding(2, emb_dim)
 
         torch.nn.init.xavier_uniform_(self.x_embedding1.weight.data)
         torch.nn.init.xavier_uniform_(self.x_embedding2.weight.data)
@@ -261,7 +262,10 @@ class GNN(torch.nn.Module):
         else:
             raise ValueError("unmatched number of arguments.")
 
-        x = self.x_embedding1(x[:,0]) + self.x_embedding2(x[:,1])
+        if x.size(1) == 2:
+            x = self.x_embedding1(x[:,0]) + self.x_embedding2(x[:,1])
+        elif x.size(1) == 3:
+            x = self.x_embedding1(x[:,0]) + self.x_embedding2(x[:,1]) + self.x_embedding3(x[:, 2])
 
         h_list = [x]
         for layer in range(self.num_layer):

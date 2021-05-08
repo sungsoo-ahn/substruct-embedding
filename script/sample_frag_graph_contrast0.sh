@@ -8,7 +8,7 @@ echo $RUN_TAG
 echo $MODEL_PATH
 echo $SUPERVISED_MODEL_PATH
 
-#python pretrain.py \
+python pretrain.py \
 --scheme sample_frag_graph_contrast \
 --frag_p 0.1 \
 --use_neptune \
