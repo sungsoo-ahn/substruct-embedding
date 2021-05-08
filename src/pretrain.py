@@ -23,7 +23,7 @@ def main():
     parser.add_argument("--scheme", type=str, default="frag_node_contrast")
     parser.add_argument("--transform", type=str, default="none")
 
-    parser.add_argument("--batch_size", type=int, default=1024)
+    parser.add_argument("--batch_size", type=int, default=256)
     parser.add_argument("--num_workers", type=int, default=8)
 
     parser.add_argument("--num_layers", type=int, default=5)

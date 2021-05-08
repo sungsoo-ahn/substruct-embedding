@@ -162,17 +162,23 @@ def _sample_fragment(data, p):
     data = _fragment(data, p)
     nx_graph = nx.Graph()
     nx_graph.add_edges_from(data.edge_index.t().tolist())
-    subgraph_nodes = list(max(nx.connected_components(nx_graph), key=len))
+    subgraph_nodes = list(random.choice(list(nx.connected_components(nx_graph))))
     
     return subgraph_data(data, subgraph_nodes)
 
 def fragment(data, p):
+    if data.frag_y.max() == 0:
+        return None, None
+
     data0 = _fragment(clone_data(data), p)
     data1 = _fragment(clone_data(data), p)
     
     return data0, data1    
 
 def sample_fragment(data, p):
+    if data.frag_y.max() == 0:
+        return None, None
+
     data0 = _sample_fragment(clone_data(data), p)
     data1 = _sample_fragment(clone_data(data), p)
     
