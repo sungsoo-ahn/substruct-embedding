@@ -8,10 +8,10 @@ echo $RUN_TAG
 echo $MODEL_PATH
 echo $SUPERVISED_MODEL_PATH
 
-#python pretrain.py \
-#--scheme partition_frag_graph_contrast \
-#--use_neptune \
-#--run_tag $RUN_TAG
+python pretrain.py \
+--scheme partition_frag_graph_contrast \
+--use_neptune \
+--run_tag $RUN_TAG
 
 python finetune.py \
 --datasets "bace" "bbbp" "sider" "clintox" "tox21" "toxcast" "hiv" "muv" \
