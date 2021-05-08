@@ -23,7 +23,7 @@ def main():
     parser.add_argument("--scheme", type=str, default="frag_node_contrast")
     parser.add_argument("--transform", type=str, default="none")
 
-    parser.add_argument("--batch_size", type=int, default=256)
+    parser.add_argument("--batch_size", type=int, default=1024)
     parser.add_argument("--num_workers", type=int, default=8)
 
     parser.add_argument("--num_layers", type=int, default=5)
@@ -34,6 +34,7 @@ def main():
     parser.add_argument("--use_neptune", action="store_true")
     
     parser.add_argument("--frag_p", type=float, default=0.1)
+    parser.add_argument("--zero_pool", action="store_true")
     
     args = parser.parse_args()
 
@@ -54,7 +55,7 @@ def main():
     
     elif args.scheme == "partition_frag_graph_contrast":
         scheme = base.BaseScheme()
-        model = base.GraphContrastiveModel()
+        model = base.GraphContrastiveModel(zero_pool=args.zero_pool)
         transform = partition_fragment
     
     
@@ -92,7 +93,7 @@ def main():
         if args.use_neptune:
             run[f"epoch"].log(epoch)
 
-        for batch0, batch1 in (loader):
+        for batch0, batch1 in tqdm(loader):
             step += 1
             train_statistics = scheme.train_step(batch0, batch1, model, optim)
             #print(train_statistics)

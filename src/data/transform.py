@@ -121,7 +121,7 @@ def _fragment(data, p):
     keep_mask = (drop_mask == False)
     
     dropped_inter_edge_index = undirected_inter_edge_index[:, drop_mask]
-    dangling_nodes = torch.cat([dropped_inter_edge_index[0], dropped_inter_edge_index[1]], dim=0)
+    dangling_nodes = dropped_inter_edge_index[0]
     fake_nodes = torch.arange(dangling_nodes.size(0)) + data.x.size(0)
     dangling_edge_index = torch.stack([dangling_nodes, fake_nodes], dim=0)
     
@@ -130,20 +130,26 @@ def _fragment(data, p):
         [torch.cat([row, col], dim=0), torch.cat([col, row], dim=0)], dim=0
         )
     new_inter_edge_attr = torch.cat([
-        undirected_inter_edge_attr,
+        undirected_inter_edge_attr[keep_mask, :],
         undirected_inter_edge_attr[drop_mask, :],
-        undirected_inter_edge_attr,
+        undirected_inter_edge_attr[keep_mask, :],
         undirected_inter_edge_attr[drop_mask, :],
         ], dim=0)
-
+    
     edge_index = torch.cat([intra_edge_index, new_inter_edge_index], dim=1)
     edge_attr = torch.cat([intra_edge_attr, new_inter_edge_attr], dim=0)
     num_nodes = data.x.size(0)
     edge_index, edge_attr = coalesce(edge_index, edge_attr, num_nodes, num_nodes)
 
-    dangling_x = torch.zeros(dangling_nodes.size(0), data.x.size(1), dtype=torch.long)
-    x = torch.cat([data.x, dangling_x], dim=0)
+    fake_x = torch.zeros(fake_nodes.size(0), data.x.size(1), dtype=torch.long)
+    x = torch.cat([data.x, fake_x], dim=0)
     
+    dangling_mask = torch.zeros(data.x.size(0), dtype=torch.long)
+    dangling_mask[dropped_inter_edge_index[1]] = True
+    dangling_mask = torch.cat([dangling_mask, torch.ones(fake_x.size(0), dtype=torch.long)], dim=0)
+    
+    x = torch.cat([x, dangling_mask.unsqueeze(1)], dim=1)
+        
     new_data = Data(
         x=x,
         edge_index=edge_index,
@@ -174,7 +180,7 @@ def sample_fragment(data, p):
 
 def partition_fragment(data):
     if data.frag_y.max() == 0:
-        return data, data
+        return None, None
     
     data = _fragment(data, 0.0)
     nx_graph = nx.Graph()
