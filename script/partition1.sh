@@ -1,6 +1,6 @@
 #!/bin/bash
 
-RUN_TAG="partition_frag_graph_contrast2"
+RUN_TAG="partition1"
 MODEL_PATH="../resource/result/${RUN_TAG}/model.pt"
 SUPERVISED_MODEL_PATH="../resource/result/${RUN_TAG}/model_supervised.pt"
 
@@ -9,8 +9,8 @@ echo $MODEL_PATH
 echo $SUPERVISED_MODEL_PATH
 
 python pretrain.py \
---scheme partition_frag_graph_contrast \
---batch_size 1024 \
+--scheme partition \
+--use_dangling_node_features \
 --use_neptune \
 --run_tag $RUN_TAG
 

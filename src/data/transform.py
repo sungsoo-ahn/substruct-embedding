@@ -119,29 +119,40 @@ def _fragment(data, p):
     drop_mask = torch.zeros(num_idxs).to(torch.bool)
     drop_mask[drop_idxs] = True
     keep_mask = (drop_mask == False)
-        
-    row, col = undirected_inter_edge_index[:, keep_mask]
+    
+    dropped_inter_edge_index = undirected_inter_edge_index[:, drop_mask]
+    dangling_nodes = torch.cat([dropped_inter_edge_index[0], dropped_inter_edge_index[1]], dim=0)
+    fake_nodes = torch.arange(dangling_nodes.size(0)) + data.x.size(0)
+    dangling_edge_index = torch.stack([dangling_nodes, fake_nodes], dim=0)
+    
+    row, col = torch.cat([undirected_inter_edge_index[:, keep_mask], dangling_edge_index], dim=1)
     new_inter_edge_index = torch.stack(
         [torch.cat([row, col], dim=0), torch.cat([col, row], dim=0)], dim=0
         )
     new_inter_edge_attr = torch.cat([
         undirected_inter_edge_attr[keep_mask, :],
+        undirected_inter_edge_attr[drop_mask, :],
+        undirected_inter_edge_attr[drop_mask, :],
         undirected_inter_edge_attr[keep_mask, :],
+        undirected_inter_edge_attr[drop_mask, :],
+        undirected_inter_edge_attr[drop_mask, :],
         ], dim=0)
-    
+
     edge_index = torch.cat([intra_edge_index, new_inter_edge_index], dim=1)
     edge_attr = torch.cat([intra_edge_attr, new_inter_edge_attr], dim=0)
     num_nodes = data.x.size(0)
     edge_index, edge_attr = coalesce(edge_index, edge_attr, num_nodes, num_nodes)
-        
+
+    dangling_x = torch.zeros(dangling_nodes.size(0), data.x.size(1), dtype=torch.long)
+    x = torch.cat([data.x, dangling_x], dim=0)
+    
     new_data = Data(
-        x=data.x,
+        x=x,
         edge_index=edge_index,
         edge_attr=edge_attr,
     )
     
     return new_data
-
 def _sample_fragment(data, p):
     data = _fragment(data, p)
     nx_graph = nx.Graph()
@@ -150,7 +161,7 @@ def _sample_fragment(data, p):
     
     return subgraph_data(data, subgraph_nodes)
 
-def fragment(data, p):
+def fragment_data(data, p):
     if data.frag_y.max() == 0:
         return data, data
 
@@ -159,16 +170,16 @@ def fragment(data, p):
     
     return data0, data1    
 
-def sample_fragment(data, p):
+def sample_data(data, p):
     if data.frag_y.max() == 0:
-        return data, data
+        return None, None
 
     data0 = _sample_fragment(clone_data(data), p)
     data1 = _sample_fragment(clone_data(data), p)
     
-    return data0, data1    
+    return data0, data1
 
-def partition_fragment(data):
+def partition_data(data):
     if data.frag_y.max() == 0:
         return None, None
     

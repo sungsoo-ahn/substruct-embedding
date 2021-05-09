@@ -6,13 +6,39 @@ import numpy as np
 import torch
 import torch_geometric
 
-from frag_dataset import FragDataset, double_collate
-from scheme import base
-from data.transform import fragment, sample_fragment, partition_fragment
+from frag_dataset import FragDataset, multiple_collate
+from scheme import sample, partition
+from data.transform import sample_data, partition_data
 import neptune.new as neptune
 
 from tqdm import tqdm
 
+def compute_accuracy(pred, target):
+    acc = float(torch.sum(torch.max(pred, dim=1)[1] == target)) / pred.size(0)
+    return acc
+
+def train_step(batchs, model, optim):
+    model.train()
+
+    logits_and_labels = model.compute_logits_and_labels(batchs)
+
+    cum_loss = 0.0
+    statistics = dict()
+    for key in logits_and_labels:
+        logits, labels = logits_and_labels[key]    
+        loss = model.criterion(logits, labels)
+        acc = compute_accuracy(logits, labels)
+        
+        statistics[f"{key}/loss"] = loss.detach()
+        statistics[f"{key}/acc"] = acc
+        
+        cum_loss += loss            
+
+    optim.zero_grad()
+    cum_loss.backward()
+    optim.step()
+
+    return statistics
 
 def main():
     parser = argparse.ArgumentParser()
@@ -33,8 +59,9 @@ def main():
     parser.add_argument("--run_tag", type=str, default="")
     parser.add_argument("--use_neptune", action="store_true")
     
-    parser.add_argument("--frag_p", type=float, default=0.1)
-    parser.add_argument("--zero_pool", action="store_true")
+    parser.add_argument("--sample_p", type=float, default=0.5)
+    parser.add_argument("--use_dangling_node_features", action="store_true")
+    parser.add_argument("--use_mlp_predict", action="store_true")
     
     args = parser.parse_args()
 
@@ -43,20 +70,13 @@ def main():
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(0)
 
-    if args.scheme == "frag_node_contrast":
-        scheme = base.BaseScheme()
-        model = base.NodeContrastiveModel()
-        transform = lambda data: fragment(data, args.frag_p)
+    if args.scheme == "sample":
+        model = sample.Model()
+        transform = lambda data: sample_data(data, args.sample_p)
     
-    elif args.scheme == "sample_frag_graph_contrast":
-        scheme = base.BaseScheme()
-        model = base.GraphContrastiveModel()
-        transform = lambda data: sample_fragment(data, args.frag_p)
-    
-    elif args.scheme == "partition_frag_graph_contrast":
-        scheme = base.BaseScheme()
-        model = base.GraphContrastiveModel(zero_pool=args.zero_pool)
-        transform = partition_fragment
+    elif args.scheme == "partition":
+        model = partition.Model(args.use_dangling_node_features, args.use_mlp_predict)
+        transform = partition_data
     
     
     print("Loading model...")
@@ -75,7 +95,7 @@ def main():
         batch_size=args.batch_size,
         shuffle=True,
         num_workers=args.num_workers,
-        collate_fn=double_collate,
+        collate_fn=multiple_collate,
     )
 
     if args.use_neptune:
@@ -93,10 +113,9 @@ def main():
         if args.use_neptune:
             run[f"epoch"].log(epoch)
 
-        for batch0, batch1 in tqdm(loader):
+        for batchs in tqdm(loader):
             step += 1
-            train_statistics = scheme.train_step(batch0, batch1, model, optim)
-            #print(train_statistics)
+            train_statistics = train_step(batchs, model, optim)
             if step % args.log_freq == 0:
                 for key, val in train_statistics.items():
                     if args.use_neptune:
