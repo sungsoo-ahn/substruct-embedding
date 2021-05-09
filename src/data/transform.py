@@ -152,9 +152,14 @@ def _fragment(data, p):
         edge_attr=edge_attr,
     )
     
-    return new_data
+    fake_edges = torch.stack(
+        [fake_nodes[:fake_nodes.size(0) // 2], fake_nodes[fake_nodes.size(0) // 2:]], dim=0
+        )
+    
+    return new_data, fake_edges
+
 def _sample_fragment(data, p):
-    data = _fragment(data, p)
+    data, fake_edges = _fragment(data, p)
     nx_graph = nx.Graph()
     nx_graph.add_edges_from(data.edge_index.t().tolist())
     subgraph_nodes = list(random.choice(list(nx.connected_components(nx_graph))))
@@ -165,8 +170,8 @@ def fragment_data(data, p):
     if data.frag_y.max() == 0:
         return data, data
 
-    data0 = _fragment(clone_data(data), p)
-    data1 = _fragment(clone_data(data), p)
+    data0, fake_edges0 = _fragment(clone_data(data), p)
+    data1, fake_edges1 = _fragment(clone_data(data), p)
     
     return data0, data1    
 
@@ -179,14 +184,19 @@ def sample_data(data, p):
     
     return data0, data1
 
-def partition_data(data):
+def partition_data(data, p):
     if data.frag_y.max() == 0:
         return None, None
     
-    data = _fragment(data, 0.0)
+    data, fake_edges = _fragment(data, p)
+    
+    fake_edge_idx = random.choice(range(fake_edges.size(1)))
+    fake_node0, fake_node1 = fake_edges[:, fake_edge_idx].tolist()
+    
     nx_graph = nx.Graph()
     nx_graph.add_edges_from(data.edge_index.t().tolist())
-    subgraph_nodes0, subgraph_nodes1 = map(list, list(nx.connected_components(nx_graph)))
+    subgraph_nodes0 = list(nx.node_connected_component(nx_graph, fake_node0))
+    subgraph_nodes1 = list(nx.node_connected_component(nx_graph, fake_node1))
     
     data0 = subgraph_data(data, subgraph_nodes0)
     data1 = subgraph_data(data, subgraph_nodes1)

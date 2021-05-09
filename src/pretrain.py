@@ -12,6 +12,7 @@ from data.transform import sample_data, partition_data
 import neptune.new as neptune
 
 from tqdm import tqdm
+from time import asctime
 
 def compute_accuracy(pred, target):
     acc = float(torch.sum(torch.max(pred, dim=1)[1] == target)) / pred.size(0)
@@ -44,13 +45,13 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", type=str, default="zinc_brics")
     parser.add_argument("--num_epochs", type=int, default=100)
-    parser.add_argument("--log_freq", type=float, default=10)
+    parser.add_argument("--log_freq", type=float, default=500)
 
     parser.add_argument("--scheme", type=str, default="frag_node_contrast")
     parser.add_argument("--transform", type=str, default="none")
 
     parser.add_argument("--batch_size", type=int, default=256)
-    parser.add_argument("--num_workers", type=int, default=8)
+    parser.add_argument("--num_workers", type=int, default=16)
 
     parser.add_argument("--num_layers", type=int, default=5)
     parser.add_argument("--emb_dim", type=int, default=300)
@@ -76,7 +77,7 @@ def main():
     
     elif args.scheme == "partition":
         model = partition.Model(args.use_dangling_node_features, args.use_mlp_predict)
-        transform = partition_data
+        transform = lambda data: partition_data(data, args.sample_p)
     
     
     print("Loading model...")
@@ -100,7 +101,12 @@ def main():
 
     if args.use_neptune:
         print("Loading neptune...")
-        run = neptune.init(project="sungsahn0215/ssg", name="group_contrast")
+        run = neptune.init(
+            project="sungsahn0215/ssg", 
+            name="group_contrast", 
+            source_files=["*.py", "**/*.py"], 
+            mode="offline"
+            )
         run["parameters"] = vars(args)
         if args.run_tag == "":
             run_tag = run["sys/id"].fetch()
@@ -110,16 +116,21 @@ def main():
 
     step = 0
     for epoch in range(args.num_epochs):
+        print(f"[{asctime()}] epoch: {epoch}")
         if args.use_neptune:
             run[f"epoch"].log(epoch)
 
-        for batchs in tqdm(loader):
+        for batchs in (loader):
             step += 1
             train_statistics = train_step(batchs, model, optim)
             if step % args.log_freq == 0:
+                prompt = ""
                 for key, val in train_statistics.items():
+                    prompt += f"train/{key}: {val:.2f} "
                     if args.use_neptune:
                         run[f"train/{key}"].log(val)
+                
+                print(f"[{asctime()}] {prompt}")
 
         if args.use_neptune:
             torch.save(
