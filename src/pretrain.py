@@ -8,7 +8,7 @@ import torch_geometric
 
 from frag_dataset import FragDataset, multiple_collate
 from scheme import sample, partition
-from data.transform import sample_data, partition_data
+from data.transform import sample_data, random_sample_data
 import neptune.new as neptune
 
 from tqdm import tqdm
@@ -44,14 +44,14 @@ def train_step(batchs, model, optim):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", type=str, default="zinc_brics")
-    parser.add_argument("--num_epochs", type=int, default=100)
-    parser.add_argument("--log_freq", type=float, default=500)
+    parser.add_argument("--num_epochs", type=int, default=50)
+    parser.add_argument("--log_freq", type=float, default=100)
 
     parser.add_argument("--scheme", type=str, default="frag_node_contrast")
     parser.add_argument("--transform", type=str, default="none")
 
-    parser.add_argument("--batch_size", type=int, default=256)
-    parser.add_argument("--num_workers", type=int, default=16)
+    parser.add_argument("--batch_size", type=int, default=1024)
+    parser.add_argument("--num_workers", type=int, default=8)
 
     parser.add_argument("--num_layers", type=int, default=5)
     parser.add_argument("--emb_dim", type=int, default=300)
@@ -60,10 +60,7 @@ def main():
     parser.add_argument("--run_tag", type=str, default="")
     parser.add_argument("--use_neptune", action="store_true")
     
-    parser.add_argument("--sample_p", type=float, default=0.5)
-    parser.add_argument("--use_dangling_node_features", action="store_true")
-    parser.add_argument("--use_mlp_predict", action="store_true")
-    
+    parser.add_argument("--sample_p", type=float, default=0.5)    
     args = parser.parse_args()
 
     torch.manual_seed(0)
@@ -75,9 +72,9 @@ def main():
         model = sample.Model()
         transform = lambda data: sample_data(data, args.sample_p)
     
-    elif args.scheme == "partition":
-        model = partition.Model(args.use_dangling_node_features, args.use_mlp_predict)
-        transform = lambda data: partition_data(data, args.sample_p)
+    elif args.scheme == "random_sample":
+        model = sample.Model()
+        transform = lambda data: random_sample_data(data)
     
     
     print("Loading model...")
@@ -115,6 +112,7 @@ def main():
         os.makedirs(f"../resource/result/{run_tag}", exist_ok=True)
 
     step = 0
+    cum_train_statistics = defaultdict(float)
     for epoch in range(args.num_epochs):
         print(f"[{asctime()}] epoch: {epoch}")
         if args.use_neptune:
@@ -123,12 +121,17 @@ def main():
         for batchs in (loader):
             step += 1
             train_statistics = train_step(batchs, model, optim)
+            for key, val in train_statistics.items():
+                cum_train_statistics[key] += val / args.log_freq
+                
             if step % args.log_freq == 0:
                 prompt = ""
-                for key, val in train_statistics.items():
+                for key, val in cum_train_statistics.items():
                     prompt += f"train/{key}: {val:.2f} "
                     if args.use_neptune:
                         run[f"train/{key}"].log(val)
+                        
+                cum_train_statistics = defaultdict(float)
                 
                 print(f"[{asctime()}] {prompt}")
 

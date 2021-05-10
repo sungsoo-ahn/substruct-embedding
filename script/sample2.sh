@@ -9,8 +9,7 @@ echo $MODEL_PATH
 echo $SUPERVISED_MODEL_PATH
 
 python pretrain.py \
---scheme sample \
---sample_p 1.0 \
+--scheme random_sample \
 --use_neptune \
 --run_tag $RUN_TAG
 

@@ -152,17 +152,80 @@ def _fragment(data, p):
         edge_attr=edge_attr,
     )
     
-    fake_edges = torch.stack(
-        [fake_nodes[:fake_nodes.size(0) // 2], fake_nodes[fake_nodes.size(0) // 2:]], dim=0
-        )
+    return new_data
+
+def _random_fragment(data):
+    if data.frag_y.max() == 0:
+        return data
     
-    return new_data, fake_edges
+    inter_edge_mask = data.frag_y[data.edge_index[0]] != data.frag_y[data.edge_index[1]]
+    inter_edge_index = data.edge_index[:, inter_edge_mask]
+    inter_edge_attr = data.edge_attr[inter_edge_mask, :]
+    
+    intra_edge_index = data.edge_index[:, ~inter_edge_mask]
+    intra_edge_attr = data.edge_attr[~inter_edge_mask, :]
+    
+    undirected_mask = (inter_edge_index[0] < inter_edge_index[1])
+    undirected_inter_edge_index = inter_edge_index[:, undirected_mask]
+    undirected_inter_edge_attr = inter_edge_attr[undirected_mask, :]
+    
+    num_idxs = undirected_inter_edge_index.size(1)
+    num_drops = random.choice(range(num_idxs + 1))
+    if num_drops == 0:
+        return data
+    
+    drop_idxs = random.sample(range(num_idxs), num_drops)
+    drop_mask = torch.zeros(num_idxs).to(torch.bool)
+    drop_mask[drop_idxs] = True
+    keep_mask = (drop_mask == False)
+    
+    dropped_inter_edge_index = undirected_inter_edge_index[:, drop_mask]
+    dangling_nodes = torch.cat([dropped_inter_edge_index[0], dropped_inter_edge_index[1]], dim=0)
+    fake_nodes = torch.arange(dangling_nodes.size(0)) + data.x.size(0)
+    dangling_edge_index = torch.stack([dangling_nodes, fake_nodes], dim=0)
+    
+    row, col = torch.cat([undirected_inter_edge_index[:, keep_mask], dangling_edge_index], dim=1)
+    new_inter_edge_index = torch.stack(
+        [torch.cat([row, col], dim=0), torch.cat([col, row], dim=0)], dim=0
+        )
+    new_inter_edge_attr = torch.cat([
+        undirected_inter_edge_attr[keep_mask, :],
+        undirected_inter_edge_attr[drop_mask, :],
+        undirected_inter_edge_attr[drop_mask, :],
+        undirected_inter_edge_attr[keep_mask, :],
+        undirected_inter_edge_attr[drop_mask, :],
+        undirected_inter_edge_attr[drop_mask, :],
+        ], dim=0)
+
+    edge_index = torch.cat([intra_edge_index, new_inter_edge_index], dim=1)
+    edge_attr = torch.cat([intra_edge_attr, new_inter_edge_attr], dim=0)
+    num_nodes = data.x.size(0)
+    edge_index, edge_attr = coalesce(edge_index, edge_attr, num_nodes, num_nodes)
+
+    dangling_x = torch.zeros(dangling_nodes.size(0), data.x.size(1), dtype=torch.long)
+    x = torch.cat([data.x, dangling_x], dim=0)
+    
+    new_data = Data(
+        x=x,
+        edge_index=edge_index,
+        edge_attr=edge_attr,
+    )
+    
+    return new_data
 
 def _sample_fragment(data, p):
-    data, fake_edges = _fragment(data, p)
+    data = _fragment(data, p)
     nx_graph = nx.Graph()
     nx_graph.add_edges_from(data.edge_index.t().tolist())
     subgraph_nodes = list(random.choice(list(nx.connected_components(nx_graph))))
+    
+    return subgraph_data(data, subgraph_nodes)
+
+def _random_sample_fragment(data):
+    data = _random_fragment(data)
+    nx_graph = nx.Graph()
+    nx_graph.add_edges_from(data.edge_index.t().tolist())
+    subgraph_nodes = list(max(list(nx.connected_components(nx_graph)), key=len))
     
     return subgraph_data(data, subgraph_nodes)
 
@@ -170,35 +233,25 @@ def fragment_data(data, p):
     if data.frag_y.max() == 0:
         return data, data
 
-    data0, fake_edges0 = _fragment(clone_data(data), p)
-    data1, fake_edges1 = _fragment(clone_data(data), p)
+    data0 = _fragment(clone_data(data), p)
+    data1 = _fragment(clone_data(data), p)
     
     return data0, data1    
 
 def sample_data(data, p):
     if data.frag_y.max() == 0:
-        return None, None
+        return data, data
 
     data0 = _sample_fragment(clone_data(data), p)
     data1 = _sample_fragment(clone_data(data), p)
     
     return data0, data1
 
-def partition_data(data, p):
+def random_sample_data(data):
     if data.frag_y.max() == 0:
-        return None, None
-    
-    data, fake_edges = _fragment(data, p)
-    
-    fake_edge_idx = random.choice(range(fake_edges.size(1)))
-    fake_node0, fake_node1 = fake_edges[:, fake_edge_idx].tolist()
-    
-    nx_graph = nx.Graph()
-    nx_graph.add_edges_from(data.edge_index.t().tolist())
-    subgraph_nodes0 = list(nx.node_connected_component(nx_graph, fake_node0))
-    subgraph_nodes1 = list(nx.node_connected_component(nx_graph, fake_node1))
-    
-    data0 = subgraph_data(data, subgraph_nodes0)
-    data1 = subgraph_data(data, subgraph_nodes1)
+        return data, data
+
+    data0 = _random_sample_fragment(clone_data(data))
+    data1 = _random_sample_fragment(clone_data(data))
     
     return data0, data1

@@ -205,9 +205,9 @@ def main():
 
                 scheduler.step()
 
-                train_statistics = evaluate(model, train_loader, device)
-                for key, val in train_statistics.items():
-                    run[f"{dataset_name}/run{runseed}/train/{key}"].log(val)
+                #train_statistics = evaluate(model, train_loader, device)
+                #for key, val in train_statistics.items():
+                #    run[f"{dataset_name}/run{runseed}/train/{key}"].log(val)
                     
                 vali_statistics = evaluate(model, vali_loader, device)
                 for key, val in vali_statistics.items():

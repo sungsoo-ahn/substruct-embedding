@@ -10,7 +10,7 @@ echo $SUPERVISED_MODEL_PATH
 
 python pretrain.py \
 --scheme sample \
---sample_p 0.75 \
+--batch_size 256 \
 --use_neptune \
 --run_tag $RUN_TAG
 
