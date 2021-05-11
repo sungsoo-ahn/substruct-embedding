@@ -47,7 +47,7 @@ def main():
     parser.add_argument("--scheme", type=str, default="sample0")
     parser.add_argument("--transform", type=str, default="none")
 
-    parser.add_argument("--batch_size", type=int, default=512)
+    parser.add_argument("--batch_size", type=int, default=128)
     parser.add_argument("--num_workers", type=int, default=8)
 
     parser.add_argument("--num_layers", type=int, default=5)
@@ -109,7 +109,7 @@ def main():
         if args.use_neptune:
             run[f"epoch"].log(epoch)
 
-        for batchs in tqdm(loader):
+        for batchs in (loader):
             step += 1
             train_statistics = train_step(batchs, model, optim)
             for key, val in train_statistics.items():
