@@ -9,14 +9,12 @@ from rdkit.Chem import BRICS
 
 import torch
 from torch_geometric.data import Data, InMemoryDataset
-from torch_geometric.nn import global_add_pool
 from itertools import repeat
 
-from data.dataset import MoleculeDataset, mol_to_graph_data_obj_simple
-from data.splitter import generate_scaffold
+from data.dataset import MoleculeDataset
 
 def multiple_collate(data_list):
-    data_list = [data for data in data_list if data[0] is not None]
+    data_list = [data for data in data_list if data is not None]
     data_lists = zip(*data_list)
     batchs = [collate(data_list) for data_list in data_lists]
     return batchs

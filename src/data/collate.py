@@ -43,3 +43,8 @@ def collate(data_list):
 def collate_multiple(data_list):
     data_list = [data for data in data_list if data[0] is not None]
     return [collate(list(data_list)) for data_list in zip(*data_list)]
+
+def multiple_collate_cat(data_list):
+    data_list = [data_ for data_ in data_list if data_ is not None]
+    data_list = [data for data_ in data_list for data in data_]
+    return collate(data_list)

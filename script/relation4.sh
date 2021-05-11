@@ -1,6 +1,6 @@
 #!/bin/bash
 
-RUN_TAG="sample1"
+RUN_TAG="relation4"
 MODEL_PATH="../resource/result/${RUN_TAG}/model.pt"
 SUPERVISED_MODEL_PATH="../resource/result/${RUN_TAG}/model_supervised.pt"
 
@@ -9,8 +9,7 @@ echo $MODEL_PATH
 echo $SUPERVISED_MODEL_PATH
 
 python pretrain.py \
---scheme sample \
---batch_size 256 \
+--aggr "add" \
 --use_neptune \
 --run_tag $RUN_TAG
 
