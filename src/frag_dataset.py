@@ -100,7 +100,25 @@ def main():
             atom.SetIntProp("SourceAtomIdx", atom.GetIdx())
         
         frag_y = torch.full((data.x.size(0), ), -1).long()
-        fragged_mol = BRICS.BreakBRICSBonds(mol)
+        brics_y = torch.full((data.edge_index.size(1), 2), 0).long()
+        
+        brics_bonds = BRICS.FindBRICSBonds(mol)
+        for (atom0, atom1), (atom0_type, atom1_type) in brics_bonds:    
+            edge_mask0 = (
+                (data.edge_index[0] == atom0).long() + (data.edge_index[1] == atom1).long() > 1
+            )
+            edge_mask1 = (
+                (data.edge_index[1] == atom0).long() + (data.edge_index[0] == atom1).long() > 1
+            )
+            
+            brics_y[edge_mask0, 0] = int(atom0_type)
+            brics_y[edge_mask0, 1] = int(atom1_type)
+            brics_y[edge_mask1, 0] = int(atom1_type)
+            brics_y[edge_mask1, 1] = int(atom0_type)
+            
+        fragged_mol = BRICS.BreakBRICSBonds(mol, bonds=brics_bonds)
+        
+        
         fragged_smiles_list.append(Chem.MolToSmiles(fragged_mol))
         
         frags = Chem.GetMolFrags(fragged_mol, asMols=True)        
@@ -117,6 +135,7 @@ def main():
             print("left out atoms")
         
         data.frag_y = frag_y
+        data.brics_y = brics_y
         data_list.append(data)
                         
         #degrees = torch.zeros(data.x.size(0), 4, dtype=torch.long)

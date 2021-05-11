@@ -40,56 +40,6 @@ def collate(data_list):
     
     return batch.contiguous()
 
-def collate_twice(data_list):
+def collate_multiple(data_list):
     data_list = [data for data in data_list if data[0] is not None]
-    data_list0, data_list1 = map(list, zip(*data_list))
-    return collate(data_list0), collate(data_list1)
-
-def collate_cat(data_list):
-    data_list = [data for data_ in zip(*data_list) for data in data_]
-    return collate(data_list)
-
-def collate_nodemask(data_list, mask_rate):
-    batch = collate(data_list)
-    
-    num_nodes = batch.x.size(0)
-    num_mask_nodes = max(int(mask_rate * num_nodes), 1)
-    mask_nodes = list(sorted(random.sample(range(num_nodes), num_mask_nodes)))    
-
-    mask = torch.zeros(num_nodes, dtype=torch.bool)
-    mask[mask_nodes] = True
-    batch.y = batch.x[:, 0].clone()
-    batch.x[mask_nodes, 0] = 0
-    batch.mask=mask
-    
-    return batch    
-
-def collate_edgemask(data_list, mask_rate):
-    batch = collate(data_list)
-    
-    num_edges = batch.edge_index.size(1)
-    num_mask_edges = max(int(mask_rate * num_nodes), 1)
-    mask_edges = list(sorted(random.sample(range(num_edges), num_mask_edges)))    
-
-    labels0 = batch.edge_attr[mask_edges, 0]
-    labels1 = batch.x[batch.edge_attr]
-
-    mask = torch.zeros(num_nodes, dtype=torch.bool)
-    mask[mask_nodes] = True
-    batch.y = batch.x[:, 0].clone()
-    batch.x[mask_nodes, 0] = 0
-    batch.mask=mask
-    
-    return batch
-
-def collate_balanced_nodemask(data_list):
-    batch = collate(data_list)
-    
-    node_label = batch.x[:, 0]
-    label_bincount = torch.bincount(node_label)
-
-    
-def collate_balanced_edgemask(data_list):
-    asd
-
-    
+    return [collate(list(data_list)) for data_list in zip(*data_list)]

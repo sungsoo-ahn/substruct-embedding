@@ -8,7 +8,7 @@ import torch_geometric
 
 from frag_dataset import FragDataset, multiple_collate
 from scheme import sample, partition
-from data.transform import sample_data, random_sample_data
+from data.transform import sample_data0, sample_data1
 import neptune.new as neptune
 
 from tqdm import tqdm
@@ -47,7 +47,7 @@ def main():
     parser.add_argument("--num_epochs", type=int, default=50)
     parser.add_argument("--log_freq", type=float, default=100)
 
-    parser.add_argument("--scheme", type=str, default="frag_node_contrast")
+    parser.add_argument("--scheme", type=str, default="sample0")
     parser.add_argument("--transform", type=str, default="none")
 
     parser.add_argument("--batch_size", type=int, default=1024)
@@ -68,13 +68,13 @@ def main():
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(0)
 
-    if args.scheme == "sample":
+    if args.scheme == "sample0":
         model = sample.Model()
-        transform = lambda data: sample_data(data, args.sample_p)
+        transform = lambda data: sample_data0(data, args.sample_p)
     
-    elif args.scheme == "random_sample":
+    elif args.scheme == "sample1":
         model = sample.Model()
-        transform = lambda data: random_sample_data(data)
+        transform = lambda data: sample_data1(data)
     
     
     print("Loading model...")
