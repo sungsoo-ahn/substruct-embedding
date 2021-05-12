@@ -6,9 +6,9 @@ import numpy as np
 import torch
 
 from frag_dataset import FragDataset
-from scheme import sample, relational
-from data.transform import double_sequential_fragment
-from data.collate import multiple_collate_cat
+from scheme import maskpred, contrastive, junction_maskpred, junction_contrastive
+from data.transform import fragment, double_fragment
+from data.collate import super_collate, double_super_collate
 import neptune.new as neptune
 
 from tqdm import tqdm
@@ -18,35 +18,19 @@ def compute_accuracy(pred, target):
     acc = float(torch.sum(torch.max(pred, dim=1)[1] == target)) / pred.size(0)
     return acc
 
-def train_step(batchs, model, optim):
+def train_step(batch, super_batch, model, optim):
     model.train()
 
     statistics = dict()
-    if model.use_relation:
-        logits, labels, relation_logits, relation_labels = model.compute_logits_and_labels(batchs)
-        loss = model.criterion(logits, labels)
-        acc = compute_accuracy(logits, labels)
-        
-        relation_loss = model.criterion(relation_logits, relation_labels)
-        relation_acc = compute_accuracy(relation_logits, relation_labels)        
-        
-        cum_loss = relation_loss + loss
-        
-        statistics["loss"] = loss.detach()
-        statistics["acc"] = acc
-        statistics["relation_loss"] = relation_loss.detach()
-        statistics["relation_acc"] = relation_acc
-        
-    else:
-        logits, labels = model.compute_logits_and_labels(batchs)
-        cum_loss = loss = model.criterion(logits, labels)
-        acc = compute_accuracy(logits, labels)
-        
-        statistics["loss"] = cum_loss.detach()
-        statistics["acc"] = acc
-        
+    logits, labels = model.compute_logits_and_labels(batch, super_batch)
+    loss = model.criterion(logits, labels)
+    acc = compute_accuracy(logits, labels)
+    
+    statistics["loss"] = loss.detach()
+    statistics["acc"] = acc
+
     optim.zero_grad()
-    cum_loss.backward()
+    loss.backward()
     optim.step()
 
     return statistics
@@ -57,10 +41,10 @@ def main():
     parser.add_argument("--num_epochs", type=int, default=10)
     parser.add_argument("--log_freq", type=float, default=100)
 
-    parser.add_argument("--scheme", type=str, default="sample0")
+    parser.add_argument("--scheme", type=str, default="maskpred")
     parser.add_argument("--transform", type=str, default="none")
 
-    parser.add_argument("--batch_size", type=int, default=128)
+    parser.add_argument("--batch_size", type=int, default=256)
     parser.add_argument("--num_workers", type=int, default=8)
 
     parser.add_argument("--num_layers", type=int, default=5)
@@ -71,7 +55,7 @@ def main():
     parser.add_argument("--use_neptune", action="store_true")
     
     parser.add_argument("--aggr", type=str, default="max")
-    parser.add_argument("--use_relation", action="store_true")    
+    parser.add_argument("--use_relation", action="store_true")  
     parser.add_argument("--mask_p", type=float, default=0.0)
     args = parser.parse_args()
 
@@ -80,8 +64,25 @@ def main():
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(0)
 
-    model = relational.Model(args.aggr, args.use_relation)
-    transform = lambda data: double_sequential_fragment(data, args.mask_p)
+    if args.scheme == "maskpred":
+        model = maskpred.Model(args.aggr, args.use_relation)
+        transform = lambda data: fragment(data, mask_p=0, min_num_frags=2, max_num_frags=100)
+        collate = super_collate
+    
+    elif args.scheme == "junction_maskpred":
+        model = junction_maskpred.Model(args.aggr, args.use_relation)
+        transform = lambda data: fragment(data, mask_p=0, min_num_frags=2, max_num_frags=100)
+        collate = super_collate
+    
+    elif args.scheme == "contrastive":
+        model = contrastive.Model(args.aggr, args.use_relation)
+        transform = lambda data: double_fragment(data, mask_p=0, min_num_frags=1, max_num_frags=100)
+        collate = double_super_collate
+        
+    elif args.scheme == "junction_contrastive":
+        model = junction_contrastive.Model(args.aggr, args.use_relation)
+        transform = lambda data: double_fragment(data, mask_p=0, min_num_frags=1, max_num_frags=100)
+        collate = double_super_collate
     
     print("Loading model...")
     model = model.cuda()
@@ -93,13 +94,13 @@ def main():
     dataset = FragDataset(
         "../resource/dataset/" + args.dataset, dataset=args.dataset, transform=transform,
     )
-        
+            
     loader = torch.utils.data.DataLoader(
         dataset,
         batch_size=args.batch_size,
         shuffle=True,
         num_workers=args.num_workers,
-        collate_fn=multiple_collate_cat,
+        collate_fn=collate,
     )
 
     if args.use_neptune:
@@ -123,9 +124,9 @@ def main():
         if args.use_neptune:
             run[f"epoch"].log(epoch)
 
-        for batchs in (loader):
+        for batch, super_batch in tqdm(loader):
             step += 1
-            train_statistics = train_step(batchs, model, optim)
+            train_statistics = train_step(batch, super_batch, model, optim)
             for key, val in train_statistics.items():
                 cum_train_statistics[key] += val / args.log_freq
                 

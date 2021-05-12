@@ -1,6 +1,6 @@
 #!/bin/bash
 
-RUN_TAG="relation1"
+RUN_TAG="junction0"
 MODEL_PATH="../resource/result/${RUN_TAG}/model.pt"
 SUPERVISED_MODEL_PATH="../resource/result/${RUN_TAG}/model_supervised.pt"
 
@@ -9,7 +9,7 @@ echo $MODEL_PATH
 echo $SUPERVISED_MODEL_PATH
 
 python pretrain.py \
---aggr "plus" \
+--scheme "maskpred" \
 --use_relation \
 --use_neptune \
 --run_tag $RUN_TAG
@@ -17,15 +17,4 @@ python pretrain.py \
 python finetune.py \
 --datasets "bace" "bbbp" "sider" "clintox" "tox21" "toxcast" "hiv" "muv" \
 --model_path $MODEL_PATH \
---run_tag $RUN_TAG
-
-python supervised.py \
---input_model_path $MODEL_PATH \
---output_model_path $SUPERVISED_MODEL_PATH \
---use_neptune \
---run_tag $RUN_TAG
-
-python finetune.py \
---datasets "bace" "bbbp" "sider" "clintox" "tox21" "toxcast" "hiv" "muv" \
---model_path $SUPERVISED_MODEL_PATH \
 --run_tag $RUN_TAG

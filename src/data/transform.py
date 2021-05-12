@@ -53,8 +53,16 @@ def subgraph_data(data, subgraph_nodes):
         relabel_nodes=True,
         num_nodes=data.x.size(0),
     )
-    new_data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr,)
+    new_data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr)
     return new_data
+
+def get_mask(data, mask_p):
+    num_nodes = data.x.size(0)
+    num_mask = max(1, int(mask_p * num_nodes))
+    mask_idx = random.sample(range(num_nodes), num_mask)
+    mask = torch.zeros(data.x.size(0), dtype=torch.bool)
+    mask[mask_idx] = True
+    return mask
 
 def mask_data(data, mask_p):
     num_nodes = data.x.size(0)
@@ -68,55 +76,81 @@ def mask_data(data, mask_p):
      
     return data
 
-def sequential_fragment(data, mask_p=0.0):
-    if data.frag_y.max() == 0:
-        return None
-    
+def fragment(data, mask_p=0, min_num_frags=0, max_num_frags=100):
+    if data.frag_y.max() < min_num_frags:
+        return None, None
+        
     row, col = data.edge_index
     inter_edge_index = data.edge_index[:, data.frag_y[row] != data.frag_y[col]]
+    inter_edge_attr = data.edge_attr[data.frag_y[row] != data.frag_y[col], :]
     frag_edge_index = data.frag_y[inter_edge_index]
     
+    edge_list = [(u, v, {"edge_idx": idx}) for idx, (u, v) in enumerate(frag_edge_index.t().tolist())]
     nx_graph = nx.Graph()
-    nx_graph.add_edges_from(frag_edge_index.t().tolist())
+    nx_graph.add_edges_from(edge_list)
+    num_drop_edges = random.choice(range(min_num_frags-1, min(max_num_frags, len(nx_graph.edges)+1)))
+    if num_drop_edges == 0:
+        super_data = Data(
+            x=torch.empty(1, dtype=torch.long), 
+            edge_index=torch.empty(2, 0, dtype=torch.long), 
+            edge_attr=torch.empty(0, 2, dtype=torch.long),
+            )
+        super_data.mask = torch.zeros(1, dtype=torch.bool)
+        
+        return [data], super_data
     
-    triplets = []
-    while len(nx_graph.edges) > 0:
-        nx_graph = nx_graph.copy()
-        u, v = random.choice(list(nx_graph.edges))
-        nx_graph.remove_edge(u, v)
-        
-        subgraph_nodes0, subgraph_nodes1 = nx.connected_components(nx_graph)
-        triplets.append([set(nx_graph.nodes), subgraph_nodes0, subgraph_nodes1])
-        
-        nx_graph = nx_graph.subgraph(random.choice([subgraph_nodes0, subgraph_nodes1]))
-        
-    idx0 = random.choice(range(len(triplets)))
-    idx1 = random.choice(range(idx0+1))
+    drop_edges = random.sample(list(nx_graph.edges(data=True)), num_drop_edges)
     
-    triplet = [triplets[idx1][0], triplets[idx0][1], triplets[idx0][2]]
-    data_triplet = []
-    for frag_ys in triplet:
+    nx_graph = nx_graph.copy()
+    nx_graph.remove_edges_from([(u, v) for u, v, _ in drop_edges])
+    connected_components = list(map(list, nx.connected_components(nx_graph)))
+            
+    frag_data_list = []
+    for component_idx, component in enumerate(connected_components):
         subgraph_nodes = torch.sum(
-            (data.frag_y.unsqueeze(1) == torch.tensor(list(frag_ys))
-             ).long(), dim=1).nonzero().squeeze(1)
+            (data.frag_y.unsqueeze(1) == torch.tensor(component)
+             ).long(), dim=1).nonzero().squeeze(1)        
+                
+        frag_data_list.append(subgraph_data(data, subgraph_nodes))
         
-        new_data = subgraph_data(data, subgraph_nodes)
-        new_data.frag_mask = torch.zeros(1, 100, dtype=torch.bool)
-        new_data.frag_mask[list(frag_ys)] = 1
-        data_triplet.append(new_data)
-        
-    if mask_p > 0.0:
-        data_triplet = [mask_data(data, mask_p) for data in data_triplet]
-        
-    return data_triplet
+        for node in component:
+            nx_graph.nodes[node]["component_idx"] = component_idx
+            
+    node2component_idx = {u: nx_graph.nodes[u]["component_idx"] for u in nx_graph.nodes}
+    super_edge_index = torch.tensor(
+        [[node2component_idx[u], node2component_idx[v]] for u, v, _ in drop_edges]
+        + [[node2component_idx[v], node2component_idx[u]] for u, v, _ in drop_edges],
+        dtype=torch.long
+    ).t()
+    
+    super_edge_attr = inter_edge_attr[[edge[2]["edge_idx"] for edge in drop_edges]]
+    super_edge_attr = torch.cat([super_edge_attr, super_edge_attr], dim=0)
 
-def double_sequential_fragment(data, mask_p=0.0):
-    if data.frag_y.max() == 0:
-        return None
-     
-    data_triplet0 = sequential_fragment(clone_data(data), mask_p)
-    data_triplet1 = sequential_fragment(clone_data(data), mask_p)
+    num_super_nodes = len(connected_components)
+    super_edge_index, super_edge_attr = coalesce(
+        super_edge_index, super_edge_attr, num_super_nodes, num_super_nodes
+        )
     
-    data_list = data_triplet0 + data_triplet1
+    #print(data.x.size())
+    #print(super_edge_index)
+    #assert False
     
-    return data_list
+    super_data = Data(
+        x=torch.empty(num_super_nodes, dtype=torch.long), 
+        edge_index = super_edge_index,
+        edge_attr = super_edge_attr,
+        )
+    
+    #if mask_p > 0.0:
+    #    frag_data_list = [mask_data(data, mask_p) for data in frag_data_list]
+        
+    super_data.mask = get_mask(super_data, 0.0)
+    
+    return frag_data_list, super_data
+
+def double_fragment(data, mask_p=0, min_num_frags=0, max_num_frags=100):
+    data0, super_data0 = fragment(data, mask_p=mask_p, min_num_frags=min_num_frags)
+    data1, super_data1 = fragment(data, mask_p=mask_p, min_num_frags=min_num_frags)
+    
+    return data0, data1, super_data0, super_data1
+    

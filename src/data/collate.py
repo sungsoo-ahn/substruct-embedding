@@ -1,7 +1,7 @@
 import torch
 from torch_geometric.data import Data
 
-def collate(data_list):
+def collate(data_list):    
     keys = [set(data.keys) for data in data_list]
     keys = list(set.union(*keys))
     assert 'batch' not in keys
@@ -40,11 +40,19 @@ def collate(data_list):
     
     return batch.contiguous()
 
-def collate_multiple(data_list):
+def super_collate(data_list):
     data_list = [data for data in data_list if data[0] is not None]
-    return [collate(list(data_list)) for data_list in zip(*data_list)]
+    
+    super_data_list = [data[1] for data in data_list]
+    data_list = [data for data_tuple, _ in data_list for data in data_tuple]
+    return collate(data_list), collate(super_data_list)
 
-def multiple_collate_cat(data_list):
-    data_list = [data_ for data_ in data_list if data_ is not None]
-    data_list = [data for data_ in data_list for data in data_]
-    return collate(data_list)
+def double_super_collate(data_list):
+    data_list = [data for data in data_list if data[0] is not None]    
+    super_data_list = [data[2] for data in data_list] + [data[3] for data in data_list]
+    data_list = (
+        [data for data_tuple, _, _, _ in data_list for data in data_tuple] 
+        + [data for _, data_tuple, _, _ in data_list for data in data_tuple] 
+    )
+        
+    return collate(data_list), collate(super_data_list)
