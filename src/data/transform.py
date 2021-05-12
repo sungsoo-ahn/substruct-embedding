@@ -79,8 +79,10 @@ def sequential_fragment(data):
         
         nx_graph = nx_graph.subgraph(random.choice([subgraph_nodes0, subgraph_nodes1]))
         
-    triplet = random.choice(triplets)
+    idx0 = random.choice(range(len(triplets)))
+    idx1 = random.choice(range(idx0+1))
     
+    triplet = [triplets[idx1][0], triplets[idx0][1], triplets[idx0][2]]
     data_triplet = []
     for frag_ys in triplet:
         subgraph_nodes = torch.sum(

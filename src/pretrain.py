@@ -7,7 +7,7 @@ import torch
 
 from frag_dataset import FragDataset
 from scheme import sample, relational
-from data.transform import double_sequential_fragment
+from data.transform import sequential_fragment
 from data.collate import multiple_collate_cat
 import neptune.new as neptune
 
@@ -67,7 +67,7 @@ def main():
         torch.cuda.manual_seed_all(0)
 
     model = relational.Model(args.aggr, args.use_relation)
-    transform = double_sequential_fragment
+    transform = sequential_fragment
     
     print("Loading model...")
     model = model.cuda()

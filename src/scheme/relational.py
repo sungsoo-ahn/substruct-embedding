@@ -17,7 +17,7 @@ class Model(torch.nn.Module):
         self.use_relation = use_relation
 
         if self.use_relation:
-            pred_dim = 5
+            pred_dim = 4
         else:
             pred_dim = 2
 
@@ -37,18 +37,15 @@ class Model(torch.nn.Module):
         if self.use_relation:
             self.pos_labels = torch.tensor(
                 [
-                    [0, 2, 2, 1, 1, 1],
-                    [2, 0, 3, 1, 1, 1],
-                    [2, 3, 0, 1, 1, 1],
-                    [1, 1, 1, 0, 2, 2],
-                    [1, 1, 1, 2, 0, 3],
-                    [1, 1, 1, 2, 3, 0],
+                    [0, 1, 1],
+                    [1, 0, 2],
+                    [1, 2, 0],
                 ], dtype=torch.long
             )
         else:
-            self.pos_labels = torch.full((6, 6), 0, dtype=torch.long)
+            self.pos_labels = torch.full((3, 3), 0, dtype=torch.long)
             
-        self.neg_labels = torch.full((6, 6), pred_dim - 1, dtype=torch.long)
+        self.neg_labels = torch.full((3, 3), pred_dim - 1, dtype=torch.long)
 
         self.pos_labels = self.pos_labels.to(0)
         self.neg_labels = self.neg_labels.to(0)
@@ -65,14 +62,14 @@ class Model(torch.nn.Module):
     def compute_logits_and_labels(self, batch):
         batch = batch.to(0)
         features = self.compute_features(batch)        
-        batch_size = int(features.size(0) / 6)
+        batch_size = int(features.size(0) / 3)
 
-        features = features.view(batch_size, 6, self.emb_dim)
+        features = features.view(batch_size, 3, self.emb_dim)
         features = torch.transpose(features, 0, 1)
         
         if self.aggr in ["plus", "minus", "max"]:
-            features0 = features.unsqueeze(0)#.expand(6, 6, batch_size, self.emb_dim)
-            features1 = features.unsqueeze(1)#.expand(6, 6, batch_size, self.emb_dim)
+            features0 = features.unsqueeze(0)#.expand(3, 3, batch_size, self.emb_dim)
+            features1 = features.unsqueeze(1)#.expand(3, 3, batch_size, self.emb_dim)
             features2 = torch.roll(features1, 1, dims=2)
             if self.aggr == "plus":
                 pos_features = features0 + features1
@@ -85,8 +82,8 @@ class Model(torch.nn.Module):
                 neg_features = torch.max(features0, features2)
         
         elif self.aggr == "cat":
-            features0 = features.unsqueeze(0).expand(6, 6, batch_size, self.emb_dim)
-            features1 = features.unsqueeze(1).expand(6, 6, batch_size, self.emb_dim)
+            features0 = features.unsqueeze(0).expand(3, 3, batch_size, self.emb_dim)
+            features1 = features.unsqueeze(1).expand(3, 3, batch_size, self.emb_dim)
             features2 = torch.roll(features1, 1, dims=2)
             
             pos_features = torch.cat([features0, features1], dim=3)
@@ -96,8 +93,8 @@ class Model(torch.nn.Module):
         features = torch.cat([pos_features, neg_features], dim=2).view(-1, self.feat_dim)
         logits = self.classifier(features)
         
-        pos_labels = self.pos_labels.view(6, 6, 1).expand(6, 6, batch_size)
-        neg_labels = self.neg_labels.view(6, 6, 1).expand(6, 6, batch_size)
+        pos_labels = self.pos_labels.view(3, 3, 1).expand(3, 3, batch_size)
+        neg_labels = self.neg_labels.view(3, 3, 1).expand(3, 3, batch_size)
         labels = torch.cat([pos_labels, neg_labels], dim=2).view(-1)
 
         return logits, labels
