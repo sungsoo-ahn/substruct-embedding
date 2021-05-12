@@ -41,7 +41,7 @@ def train_step(batchs, model, optim):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", type=str, default="zinc_brics")
-    parser.add_argument("--num_epochs", type=int, default=20)
+    parser.add_argument("--num_epochs", type=int, default=10)
     parser.add_argument("--log_freq", type=float, default=100)
 
     parser.add_argument("--scheme", type=str, default="sample0")
