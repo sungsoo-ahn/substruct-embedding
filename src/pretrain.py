@@ -7,7 +7,7 @@ import torch
 
 from frag_dataset import FragDataset
 from scheme import sample, relational
-from data.transform import sequential_fragment
+from data.transform import double_sequential_fragment
 from data.collate import multiple_collate_cat
 import neptune.new as neptune
 
@@ -21,19 +21,32 @@ def compute_accuracy(pred, target):
 def train_step(batchs, model, optim):
     model.train()
 
-    logits, labels = model.compute_logits_and_labels(batchs)
-
-    cum_loss = 0.0
     statistics = dict()
+    if model.use_relation:
+        logits, labels, relation_logits, relation_labels = model.compute_logits_and_labels(batchs)
+        loss = model.criterion(logits, labels)
+        acc = compute_accuracy(logits, labels)
         
-    loss = model.criterion(logits, labels)
-    acc = compute_accuracy(logits, labels)
-    
-    statistics["loss"] = loss.detach()
-    statistics["acc"] = acc
+        relation_loss = model.criterion(relation_logits, relation_labels)
+        relation_acc = compute_accuracy(relation_logits, relation_labels)        
+        
+        cum_loss = relation_loss + loss
+        
+        statistics["loss"] = loss.detach()
+        statistics["acc"] = acc
+        statistics["relation_loss"] = relation_loss.detach()
+        statistics["relation_acc"] = relation_acc
+        
+    else:
+        logits, labels = model.compute_logits_and_labels(batchs)
+        cum_loss = loss = model.criterion(logits, labels)
+        acc = compute_accuracy(logits, labels)
+        
+        statistics["loss"] = cum_loss.detach()
+        statistics["acc"] = acc
         
     optim.zero_grad()
-    loss.backward()
+    cum_loss.backward()
     optim.step()
 
     return statistics
@@ -57,8 +70,9 @@ def main():
     parser.add_argument("--run_tag", type=str, default="")
     parser.add_argument("--use_neptune", action="store_true")
     
-    parser.add_argument("--aggr", type=str, default="cat")
+    parser.add_argument("--aggr", type=str, default="max")
     parser.add_argument("--use_relation", action="store_true")    
+    parser.add_argument("--mask_p", type=float, default=0.0)
     args = parser.parse_args()
 
     torch.manual_seed(0)
@@ -67,7 +81,7 @@ def main():
         torch.cuda.manual_seed_all(0)
 
     model = relational.Model(args.aggr, args.use_relation)
-    transform = sequential_fragment
+    transform = lambda data: double_sequential_fragment(data, args.mask_p)
     
     print("Loading model...")
     model = model.cuda()

@@ -56,8 +56,19 @@ def subgraph_data(data, subgraph_nodes):
     new_data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr,)
     return new_data
 
+def mask_data(data, mask_p):
+    num_nodes = data.x.size(0)
+    num_mask = int(mask_p * num_nodes)
+    if num_mask == 0:
+        return data
+    
+    data.x = data.x.clone()
+    mask_idx = random.sample(range(num_nodes), num_mask)
+    data.x[mask_idx, 0] = 0
+     
+    return data
 
-def sequential_fragment(data):
+def sequential_fragment(data, mask_p=0.0):
     if data.frag_y.max() == 0:
         return None
     
@@ -89,16 +100,22 @@ def sequential_fragment(data):
             (data.frag_y.unsqueeze(1) == torch.tensor(list(frag_ys))
              ).long(), dim=1).nonzero().squeeze(1)
         
-        data_triplet.append(subgraph_data(data, subgraph_nodes))
+        new_data = subgraph_data(data, subgraph_nodes)
+        new_data.frag_mask = torch.zeros(1, 100, dtype=torch.bool)
+        new_data.frag_mask[list(frag_ys)] = 1
+        data_triplet.append(new_data)
+        
+    if mask_p > 0.0:
+        data_triplet = [mask_data(data, mask_p) for data in data_triplet]
         
     return data_triplet
 
-def double_sequential_fragment(data):
+def double_sequential_fragment(data, mask_p=0.0):
     if data.frag_y.max() == 0:
         return None
      
-    data_triplet0 = sequential_fragment(clone_data(data))
-    data_triplet1 = sequential_fragment(clone_data(data))
+    data_triplet0 = sequential_fragment(clone_data(data), mask_p)
+    data_triplet1 = sequential_fragment(clone_data(data), mask_p)
     
     data_list = data_triplet0 + data_triplet1
     
