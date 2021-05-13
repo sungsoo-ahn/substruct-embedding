@@ -65,6 +65,9 @@ def get_mask(data, mask_p):
     return mask
 
 def mask_data(data, mask_p):
+    if mask_p == 0.0:
+        return data
+    
     num_nodes = data.x.size(0)
     num_mask = int(mask_p * num_nodes)
     if num_mask == 0:
@@ -72,11 +75,11 @@ def mask_data(data, mask_p):
     
     data.x = data.x.clone()
     mask_idx = random.sample(range(num_nodes), num_mask)
-    data.x[mask_idx, 0] = 0
+    data.x[mask_idx, 0] = 120
      
     return data
 
-def contract(data, contract_p):
+def contract(data, contract_p, drop_junction):
     if data.frag_y.max() == 0:
         return data
     
@@ -89,6 +92,9 @@ def contract(data, contract_p):
     num_frags = data.frag_y.max().item()+1
     #num_contract = min(np.random.binomial(num_frags, contract_p), num_frags-1)
     num_contract = np.random.binomial(num_frags, contract_p)
+    if drop_junction:
+        num_contract = min(num_contract, num_frags-1)
+        
     contract_frags = random.sample(range(num_frags), num_contract)
     frag_nodes = list(range(num_nodes, num_nodes + num_contract))
     
@@ -104,8 +110,18 @@ def contract(data, contract_p):
     edge_index = edge_index[:, selfloop_mask]
     edge_attr = edge_attr[selfloop_mask, :]
     
+    if drop_junction:
+        junction_drop_mask = torch.ones(edge_index.size(1), dtype=torch.bool)
+        junction_drop_mask[edge_index[0] > num_nodes - 1] = False
+        junction_drop_mask[edge_index[1] > num_nodes - 1] = False
+        
+        edge_index = edge_index[:, junction_drop_mask]
+        edge_attr = edge_attr[junction_drop_mask, :]
+        
+        x = x[:keepnode_mask.long().sum()]
+        
     num_keepnodes = keepnode_mask.long().sum()
-    node2newnode = -torch.ones(data.num_nodes, dtype=torch.long)
+    node2newnode = -torch.ones(num_nodes, dtype=torch.long)
     node2newnode[keepnode_mask] = torch.arange(num_keepnodes)
     node2newnode = torch.cat(
         [node2newnode, torch.arange(num_keepnodes, num_keepnodes+num_contract)], dim=0
@@ -115,23 +131,24 @@ def contract(data, contract_p):
     edge_index, edge_attr = coalesce(
         edge_index, edge_attr, num_keepnodes+num_contract, num_keepnodes+num_contract
         )
-    
-    #print(edge_index)
-    #assert False
-    
+        
     data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr)
     
     return data
 
-def contract_once(data, contract_p):
-    data0 = data
-    data1 = contract(data, contract_p)
+def contract_once(data, contract_p, mask_p, drop_junction):
+    data0 = mask_data(data, mask_p)
+    data1 = mask_data(data, mask_p)    
+    data1 = contract(data, contract_p, drop_junction)
     
     return data0, data1
 
-def contract_both(data, contract_p):
-    data0 = contract(data, contract_p)
-    data1 = contract(data, contract_p)
+def contract_both(data, contract_p, mask_p, drop_junction):
+    data0 = mask_data(data, mask_p)
+    data1 = mask_data(data, mask_p)
+    
+    data0 = contract(data0, contract_p, drop_junction)
+    data1 = contract(data1, contract_p, drop_junction)
     
     return data0, data1
     

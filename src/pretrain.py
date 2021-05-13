@@ -56,8 +56,10 @@ def main():
     
     parser.add_argument("--aggr", type=str, default="max")
     parser.add_argument("--use_relation", action="store_true")  
+    parser.add_argument("--mask_p", type=float, default=0.3)
     parser.add_argument("--contract_p", type=float, default=0.5)
     parser.add_argument("--contract_type", type=str, default="once")
+    parser.add_argument("--drop_junction", action="store_true")
     args = parser.parse_args()
 
     torch.manual_seed(0)
@@ -67,9 +69,13 @@ def main():
 
     model = contrastive.Model(args.aggr, args.use_relation)
     if args.contract_type == "once":
-        transform = lambda data: contract_once(data, contract_p=args.contract_p)
+        transform = lambda data: contract_once(
+            data, contract_p=args.contract_p, mask_p=args.mask_p, drop_junction=args.drop_junction
+            )
     elif args.contract_type == "both":
-        transform = lambda data: contract_both(data, contract_p=args.contract_p)
+        transform = lambda data: contract_both(
+            data, contract_p=args.contract_p, mask_p=args.mask_p, drop_junction=args.drop_junction
+            )
         
     collate = double_collate
         
