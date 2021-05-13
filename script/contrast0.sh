@@ -9,8 +9,9 @@ echo $MODEL_PATH
 echo $SUPERVISED_MODEL_PATH
 
 python pretrain.py \
---contract_type both \
---contract_p 0.3 \
+--contract_type once \
+--contract_p 0.9 \
+--mask_p 0.15 \
 --use_neptune \
 --run_tag $RUN_TAG
 

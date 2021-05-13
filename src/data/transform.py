@@ -92,8 +92,8 @@ def contract(data, contract_p, drop_junction):
     num_frags = data.frag_y.max().item()+1
     #num_contract = min(np.random.binomial(num_frags, contract_p), num_frags-1)
     num_contract = np.random.binomial(num_frags, contract_p)
-    if drop_junction:
-        num_contract = min(num_contract, num_frags-1)
+    #if drop_junction:   
+    num_contract = min(num_contract, num_frags-1)
         
     contract_frags = random.sample(range(num_frags), num_contract)
     frag_nodes = list(range(num_nodes, num_nodes + num_contract))

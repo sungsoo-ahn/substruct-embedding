@@ -38,7 +38,7 @@ def train_step(batch, model, optim):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", type=str, default="zinc_brics")
-    parser.add_argument("--num_epochs", type=int, default=5)
+    parser.add_argument("--num_epochs", type=int, default=50)
     parser.add_argument("--log_freq", type=float, default=100)
 
     parser.add_argument("--scheme", type=str, default="contrastive")
@@ -56,8 +56,8 @@ def main():
     
     parser.add_argument("--aggr", type=str, default="max")
     parser.add_argument("--use_relation", action="store_true")  
-    parser.add_argument("--mask_p", type=float, default=0.3)
-    parser.add_argument("--contract_p", type=float, default=0.5)
+    parser.add_argument("--mask_p", type=float, default=0.15)
+    parser.add_argument("--contract_p", type=float, default=0.8)
     parser.add_argument("--contract_type", type=str, default="once")
     parser.add_argument("--drop_junction", action="store_true")
     args = parser.parse_args()
