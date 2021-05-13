@@ -1,6 +1,6 @@
 #!/bin/bash
 
-RUN_TAG="junction0"
+RUN_TAG="contrast4"
 MODEL_PATH="../resource/result/${RUN_TAG}/model.pt"
 SUPERVISED_MODEL_PATH="../resource/result/${RUN_TAG}/model_supervised.pt"
 
@@ -9,8 +9,8 @@ echo $MODEL_PATH
 echo $SUPERVISED_MODEL_PATH
 
 python pretrain.py \
---scheme "maskpred" \
---use_relation \
+--contract_type once \
+--contract_p 0.6 \
 --use_neptune \
 --run_tag $RUN_TAG
 

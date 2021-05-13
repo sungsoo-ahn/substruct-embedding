@@ -76,81 +76,63 @@ def mask_data(data, mask_p):
      
     return data
 
-def fragment(data, mask_p=0, min_num_frags=0, max_num_frags=100):
-    if data.frag_y.max() < min_num_frags:
-        return None, None
-        
-    row, col = data.edge_index
-    inter_edge_index = data.edge_index[:, data.frag_y[row] != data.frag_y[col]]
-    inter_edge_attr = data.edge_attr[data.frag_y[row] != data.frag_y[col], :]
-    frag_edge_index = data.frag_y[inter_edge_index]
+def contract(data, contract_p):
+    if data.frag_y.max() == 0:
+        return data
     
-    edge_list = [(u, v, {"edge_idx": idx}) for idx, (u, v) in enumerate(frag_edge_index.t().tolist())]
-    nx_graph = nx.Graph()
-    nx_graph.add_edges_from(edge_list)
-    num_drop_edges = random.choice(range(min_num_frags-1, min(max_num_frags, len(nx_graph.edges)+1)))
-    if num_drop_edges == 0:
-        super_data = Data(
-            x=torch.empty(1, dtype=torch.long), 
-            edge_index=torch.empty(2, 0, dtype=torch.long), 
-            edge_attr=torch.empty(0, 2, dtype=torch.long),
-            )
-        super_data.mask = torch.zeros(1, dtype=torch.bool)
-        
-        return [data], super_data
-    
-    drop_edges = random.sample(list(nx_graph.edges(data=True)), num_drop_edges)
-    
-    nx_graph = nx_graph.copy()
-    nx_graph.remove_edges_from([(u, v) for u, v, _ in drop_edges])
-    connected_components = list(map(list, nx.connected_components(nx_graph)))
-            
-    frag_data_list = []
-    for component_idx, component in enumerate(connected_components):
-        subgraph_nodes = torch.sum(
-            (data.frag_y.unsqueeze(1) == torch.tensor(component)
-             ).long(), dim=1).nonzero().squeeze(1)        
-                
-        frag_data_list.append(subgraph_data(data, subgraph_nodes))
-        
-        for node in component:
-            nx_graph.nodes[node]["component_idx"] = component_idx
-            
-    node2component_idx = {u: nx_graph.nodes[u]["component_idx"] for u in nx_graph.nodes}
-    super_edge_index = torch.tensor(
-        [[node2component_idx[u], node2component_idx[v]] for u, v, _ in drop_edges]
-        + [[node2component_idx[v], node2component_idx[u]] for u, v, _ in drop_edges],
-        dtype=torch.long
-    ).t()
-    
-    super_edge_attr = inter_edge_attr[[edge[2]["edge_idx"] for edge in drop_edges]]
-    super_edge_attr = torch.cat([super_edge_attr, super_edge_attr], dim=0)
+    num_nodes = data.x.size(0)
+    x = data.x.clone()
+    frag_y = data.frag_y.clone()
+    edge_index = data.edge_index.clone()
+    edge_attr = data.edge_attr.clone()
 
-    num_super_nodes = len(connected_components)
-    super_edge_index, super_edge_attr = coalesce(
-        super_edge_index, super_edge_attr, num_super_nodes, num_super_nodes
+    num_frags = data.frag_y.max().item()+1
+    #num_contract = min(np.random.binomial(num_frags, contract_p), num_frags-1)
+    num_contract = np.random.binomial(num_frags, contract_p)
+    contract_frags = random.sample(range(num_frags), num_contract)
+    frag_nodes = list(range(num_nodes, num_nodes + num_contract))
+    
+    keepnode_mask = torch.ones(num_nodes, dtype=torch.bool)
+    for frag_node, frag in zip(frag_nodes, contract_frags):
+        keepnode_mask[data.frag_y == frag] = False
+        edge_index[data.frag_y[data.edge_index] == frag] = frag_node
+    
+    frag_x = torch.zeros(num_contract, x.size(1), dtype=torch.long)
+    x = torch.cat([x[keepnode_mask], frag_x], dim=0)
+    
+    selfloop_mask = edge_index[0] != edge_index[1]
+    edge_index = edge_index[:, selfloop_mask]
+    edge_attr = edge_attr[selfloop_mask, :]
+    
+    num_keepnodes = keepnode_mask.long().sum()
+    node2newnode = -torch.ones(data.num_nodes, dtype=torch.long)
+    node2newnode[keepnode_mask] = torch.arange(num_keepnodes)
+    node2newnode = torch.cat(
+        [node2newnode, torch.arange(num_keepnodes, num_keepnodes+num_contract)], dim=0
+        )
+    edge_index = node2newnode[edge_index]
+    
+    edge_index, edge_attr = coalesce(
+        edge_index, edge_attr, num_keepnodes+num_contract, num_keepnodes+num_contract
         )
     
-    #print(data.x.size())
-    #print(super_edge_index)
+    #print(edge_index)
     #assert False
     
-    super_data = Data(
-        x=torch.empty(num_super_nodes, dtype=torch.long), 
-        edge_index = super_edge_index,
-        edge_attr = super_edge_attr,
-        )
+    data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr)
     
-    #if mask_p > 0.0:
-    #    frag_data_list = [mask_data(data, mask_p) for data in frag_data_list]
-        
-    super_data.mask = get_mask(super_data, 0.0)
-    
-    return frag_data_list, super_data
+    return data
 
-def double_fragment(data, mask_p=0, min_num_frags=0, max_num_frags=100):
-    data0, super_data0 = fragment(data, mask_p=mask_p, min_num_frags=min_num_frags)
-    data1, super_data1 = fragment(data, mask_p=mask_p, min_num_frags=min_num_frags)
+def contract_once(data, contract_p):
+    data0 = data
+    data1 = contract(data, contract_p)
     
-    return data0, data1, super_data0, super_data1
+    return data0, data1
+
+def contract_both(data, contract_p):
+    data0 = contract(data, contract_p)
+    data1 = contract(data, contract_p)
+    
+    return data0, data1
+    
     

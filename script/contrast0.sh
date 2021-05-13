@@ -1,6 +1,6 @@
 #!/bin/bash
 
-RUN_TAG="junction0"
+RUN_TAG="contrast0"
 MODEL_PATH="../resource/result/${RUN_TAG}/model.pt"
 SUPERVISED_MODEL_PATH="../resource/result/${RUN_TAG}/model_supervised.pt"
 
@@ -9,8 +9,8 @@ echo $MODEL_PATH
 echo $SUPERVISED_MODEL_PATH
 
 python pretrain.py \
---scheme "contrastive" \
---use_relation \
+--contract_type both \
+--contract_p 0.3 \
 --use_neptune \
 --run_tag $RUN_TAG
 

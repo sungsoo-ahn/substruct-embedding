@@ -40,19 +40,8 @@ def collate(data_list):
     
     return batch.contiguous()
 
-def super_collate(data_list):
-    data_list = [data for data in data_list if data[0] is not None]
+def double_collate(data_list):
+    data_list0 = [data_tuple[0] for data_tuple in data_list]
+    data_list1 = [data_tuple[1] for data_tuple in data_list]
     
-    super_data_list = [data[1] for data in data_list]
-    data_list = [data for data_tuple, _ in data_list for data in data_tuple]
-    return collate(data_list), collate(super_data_list)
-
-def double_super_collate(data_list):
-    data_list = [data for data in data_list if data[0] is not None]    
-    super_data_list = [data[2] for data in data_list] + [data[3] for data in data_list]
-    data_list = (
-        [data for data_tuple, _, _, _ in data_list for data in data_tuple] 
-        + [data for _, data_tuple, _, _ in data_list for data in data_tuple] 
-    )
-        
-    return collate(data_list), collate(super_data_list)
+    return collate(data_list0 + data_list1)

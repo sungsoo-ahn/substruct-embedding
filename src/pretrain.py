@@ -7,8 +7,8 @@ import torch
 
 from frag_dataset import FragDataset
 from scheme import maskpred, contrastive, junction_maskpred, junction_contrastive
-from data.transform import fragment, double_fragment
-from data.collate import super_collate, double_super_collate
+from data.transform import contract_both, contract_once
+from data.collate import double_collate
 import neptune.new as neptune
 
 from tqdm import tqdm
@@ -18,11 +18,11 @@ def compute_accuracy(pred, target):
     acc = float(torch.sum(torch.max(pred, dim=1)[1] == target)) / pred.size(0)
     return acc
 
-def train_step(batch, super_batch, model, optim):
+def train_step(batch, model, optim):
     model.train()
 
     statistics = dict()
-    logits, labels = model.compute_logits_and_labels(batch, super_batch)
+    logits, labels = model.compute_logits_and_labels(batch)
     loss = model.criterion(logits, labels)
     acc = compute_accuracy(logits, labels)
     
@@ -38,10 +38,10 @@ def train_step(batch, super_batch, model, optim):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", type=str, default="zinc_brics")
-    parser.add_argument("--num_epochs", type=int, default=10)
+    parser.add_argument("--num_epochs", type=int, default=5)
     parser.add_argument("--log_freq", type=float, default=100)
 
-    parser.add_argument("--scheme", type=str, default="maskpred")
+    parser.add_argument("--scheme", type=str, default="contrastive")
     parser.add_argument("--transform", type=str, default="none")
 
     parser.add_argument("--batch_size", type=int, default=256)
@@ -56,7 +56,8 @@ def main():
     
     parser.add_argument("--aggr", type=str, default="max")
     parser.add_argument("--use_relation", action="store_true")  
-    parser.add_argument("--mask_p", type=float, default=0.0)
+    parser.add_argument("--contract_p", type=float, default=0.5)
+    parser.add_argument("--contract_type", type=str, default="once")
     args = parser.parse_args()
 
     torch.manual_seed(0)
@@ -64,26 +65,14 @@ def main():
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(0)
 
-    if args.scheme == "maskpred":
-        model = maskpred.Model(args.aggr, args.use_relation)
-        transform = lambda data: fragment(data, mask_p=0, min_num_frags=2, max_num_frags=100)
-        collate = super_collate
-    
-    elif args.scheme == "junction_maskpred":
-        model = junction_maskpred.Model(args.aggr, args.use_relation)
-        transform = lambda data: fragment(data, mask_p=0, min_num_frags=2, max_num_frags=100)
-        collate = super_collate
-    
-    elif args.scheme == "contrastive":
-        model = contrastive.Model(args.aggr, args.use_relation)
-        transform = lambda data: double_fragment(data, mask_p=0, min_num_frags=1, max_num_frags=100)
-        collate = double_super_collate
+    model = contrastive.Model(args.aggr, args.use_relation)
+    if args.contract_type == "once":
+        transform = lambda data: contract_once(data, contract_p=args.contract_p)
+    elif args.contract_type == "both":
+        transform = lambda data: contract_both(data, contract_p=args.contract_p)
         
-    elif args.scheme == "junction_contrastive":
-        model = junction_contrastive.Model(args.aggr, args.use_relation)
-        transform = lambda data: double_fragment(data, mask_p=0, min_num_frags=1, max_num_frags=100)
-        collate = double_super_collate
-    
+    collate = double_collate
+        
     print("Loading model...")
     model = model.cuda()
     optim = torch.optim.Adam(
@@ -124,9 +113,9 @@ def main():
         if args.use_neptune:
             run[f"epoch"].log(epoch)
 
-        for batch, super_batch in tqdm(loader):
+        for batch in tqdm(loader):
             step += 1
-            train_statistics = train_step(batch, super_batch, model, optim)
+            train_statistics = train_step(batch, model, optim)
             for key, val in train_statistics.items():
                 cum_train_statistics[key] += val / args.log_freq
                 
