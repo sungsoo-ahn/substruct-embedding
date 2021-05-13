@@ -9,8 +9,8 @@ echo $MODEL_PATH
 echo $SUPERVISED_MODEL_PATH
 
 python pretrain.py \
---scheme "junction_maskpred" \
---use_relation \
+--scheme "junction_contrastive" \
+--mask_p 0.9 \
 --use_neptune \
 --run_tag $RUN_TAG
 

@@ -10,7 +10,7 @@ echo $SUPERVISED_MODEL_PATH
 
 python pretrain.py \
 --scheme "junction_contrastive" \
---use_relation \
+--mask_p 0.6 \
 --use_neptune \
 --run_tag $RUN_TAG
 
