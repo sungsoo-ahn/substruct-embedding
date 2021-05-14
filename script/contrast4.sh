@@ -1,6 +1,6 @@
 #!/bin/bash
 
-RUN_TAG="contrast0"
+RUN_TAG="contrast4"
 MODEL_PATH="../resource/result/${RUN_TAG}/model.pt"
 SUPERVISED_MODEL_PATH="../resource/result/${RUN_TAG}/model_supervised.pt"
 
