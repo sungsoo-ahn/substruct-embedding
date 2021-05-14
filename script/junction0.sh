@@ -10,6 +10,8 @@ echo $SUPERVISED_MODEL_PATH
 
 python pretrain.py \
 --use_neptune \
+--pool_type mean \
+--aug_type roll \
 --run_tag $RUN_TAG
 
 python finetune.py \

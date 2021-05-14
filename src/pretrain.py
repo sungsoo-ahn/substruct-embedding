@@ -54,7 +54,8 @@ def main():
     parser.add_argument("--run_tag", type=str, default="")
     parser.add_argument("--use_neptune", action="store_true")
     
-    parser.add_argument("--mask_p", type=float, default=0.9)
+    parser.add_argument("--aug_type", type=str, default="roll")
+    parser.add_argument("--pool_type", type=str, default="mean")
     args = parser.parse_args()
 
     torch.manual_seed(0)
@@ -63,7 +64,7 @@ def main():
         torch.cuda.manual_seed_all(0)
 
     print("Loading model...")
-    model = junction_contrastive.Model()
+    model = junction_contrastive.Model(aug_type=args.aug_type, pool_type=args.pool_type)
         
     transform = fragment
     model = model.cuda()
