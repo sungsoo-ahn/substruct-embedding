@@ -6,23 +6,23 @@ import numpy as np
 import torch
 
 from frag_dataset import FragDataset
-from scheme import contrastive, junction_contrastive
-from data.transform import double_fragment
-from data.collate import junction_collate
+from scheme import junction_contrastive
+from data.transform import fragment
+from data.collate import collate
 import neptune.new as neptune
 
 from tqdm import tqdm
 from time import asctime
 
 def compute_accuracy(pred, target):
-    acc = float(torch.sum(torch.max(pred, dim=1)[1] == target)) / pred.size(0)
+    acc = float(torch.sum((pred > 0) == (target > 0.5))) / pred.size(0)
     return acc
 
-def train_step(batch, frag_batch, junction_batch, model, optim):
+def train_step(batch, model, optim):
     model.train()
 
     statistics = dict()
-    logits, labels = model.compute_logits_and_labels(batch, frag_batch, junction_batch)
+    logits, labels = model.compute_logits_and_labels(batch)
     loss = model.criterion(logits, labels)
     acc = compute_accuracy(logits, labels)
     
@@ -38,7 +38,7 @@ def train_step(batch, frag_batch, junction_batch, model, optim):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", type=str, default="zinc_brics")
-    parser.add_argument("--num_epochs", type=int, default=10)
+    parser.add_argument("--num_epochs", type=int, default=5)
     parser.add_argument("--log_freq", type=float, default=100)
 
     parser.add_argument("--scheme", type=str, default="junction_contrastive")
@@ -63,14 +63,9 @@ def main():
         torch.cuda.manual_seed_all(0)
 
     print("Loading model...")
-    if args.scheme == "junction_contrastive":
-        model = junction_contrastive.Model()
-    elif args.scheme == "contrastive":
-        model = contrastive.Model()
+    model = junction_contrastive.Model()
         
-    transform = lambda data: double_fragment(data, mask_p=args.mask_p)
-    collate = junction_collate
-    
+    transform = fragment
     model = model.cuda()
     optim = torch.optim.Adam(
         [param for param in model.parameters() if param.requires_grad], lr=args.lr
@@ -110,9 +105,9 @@ def main():
         if args.use_neptune:
             run[f"epoch"].log(epoch)
 
-        for batch, frag_batch, junction_batch in tqdm(loader):
+        for batch in tqdm(loader):
             step += 1
-            train_statistics = train_step(batch, frag_batch, junction_batch, model, optim)
+            train_statistics = train_step(batch, model, optim)
             for key, val in train_statistics.items():
                 cum_train_statistics[key] += val / args.log_freq
                 

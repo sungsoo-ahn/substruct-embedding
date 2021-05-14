@@ -33,17 +33,20 @@ def collate(data_list):
             batch[key], dim=data_list[0].cat_dim(key, batch[key][0]))
     
     batch.batch = torch.cat(batch.batch, dim=-1)
-    if "node2junctionnode" in data_list[0].keys:    
-        batch.junction_batch = []
-        offset = 0
-        for i, data in enumerate(data_list):
-            batch.junction_batch.append(offset + data.node2junctionnode)
-            offset += data.node2junctionnode.max().item() + 1
-            
-        batch.junction_batch = torch.cat(batch.junction_batch, dim=-1)
+    
+    batch.lower_batch = []
+    batch.upper_batch = []
+    lower_offset, upper_offset = 0, 0
+    for data in data_list:
+        batch.upper_batch.append(
+            torch.full((data.upper_num_nodes.item(), ), upper_offset, dtype=torch.long)
+            )
+        upper_offset += 1
+        for num_nodes in data.lower_num_nodes.tolist():
+            batch.lower_batch.append(torch.full((num_nodes, ), lower_offset, dtype=torch.long))
+            lower_offset += 1
+                
+    batch.upper_batch = torch.cat(batch.upper_batch, dim=-1)
+    batch.lower_batch = torch.cat(batch.lower_batch, dim=-1)
         
     return batch.contiguous()
-
-def junction_collate(data_list):
-    data_list, frag_data_list, junction_data_list = map(list, zip(*data_list))    
-    return collate(data_list), collate(frag_data_list), collate(junction_data_list)
