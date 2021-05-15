@@ -2,21 +2,18 @@ import os
 from collections import defaultdict
 import argparse
 import numpy as np
+import random
 
 import torch
 
 from frag_dataset import FragDataset
-from scheme import maskpred, contrastive, junction_maskpred, junction_contrastive
-from data.transform import contract_both, contract_once
+from scheme import contrastive, predictive
+from data.transform import fragment_once, fragment_twice
 from data.collate import double_collate
 import neptune.new as neptune
 
 from tqdm import tqdm
 from time import asctime
-
-def compute_accuracy(pred, target):
-    acc = float(torch.sum(torch.max(pred, dim=1)[1] == target)) / pred.size(0)
-    return acc
 
 def train_step(batch0, batch1, model, optim):
     model.train()
@@ -24,11 +21,11 @@ def train_step(batch0, batch1, model, optim):
     statistics = dict()
     logits, labels = model.compute_logits_and_labels(batch0, batch1)
     loss = model.criterion(logits, labels)
-    acc = compute_accuracy(logits, labels)
+    acc = model.compute_accuracy(logits, labels)
 
     statistics["loss"] = loss.detach()
     statistics["acc"] = acc
-
+    
     optim.zero_grad()
     loss.backward()
     optim.step()
@@ -41,8 +38,6 @@ def main():
     parser.add_argument("--num_epochs", type=int, default=20)
     parser.add_argument("--log_freq", type=float, default=100)
 
-    parser.add_argument("--scheme", type=str, default="contrastive")
-    parser.add_argument("--transform", type=str, default="none")
 
     parser.add_argument("--batch_size", type=int, default=256)
     parser.add_argument("--num_workers", type=int, default=8)
@@ -54,11 +49,11 @@ def main():
     parser.add_argument("--run_tag", type=str, default="")
     parser.add_argument("--use_neptune", action="store_true")
 
-    parser.add_argument("--use_double_encoder", action="store_true")
-    parser.add_argument("--mask_p", type=float, default=0.0)
-    parser.add_argument("--contract_p", type=float, default=0.8)
-    parser.add_argument("--contract_type", type=str, default="once")
-    parser.add_argument("--drop_junction", action="store_true")
+    parser.add_argument("--drop_p", type=float, default=0.5)
+    parser.add_argument("--scheme", type=str, default="contrastive")
+    parser.add_argument("--transform", type=str, default="once")
+    parser.add_argument("--use_valid", action="store_true")
+
     args = parser.parse_args()
 
     torch.manual_seed(0)
@@ -66,16 +61,17 @@ def main():
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(0)
 
-    model = contrastive.Model(args.use_double_encoder)
-    if args.contract_type == "once":
-        transform = lambda data: contract_once(
-            data, contract_p=args.contract_p, mask_p=args.mask_p, drop_junction=args.drop_junction
-            )
-    elif args.contract_type == "both":
-        transform = lambda data: contract_both(
-            data, contract_p=args.contract_p, mask_p=args.mask_p, drop_junction=args.drop_junction
-            )
-
+    if args.scheme == "contrastive":
+        model = contrastive.Model()
+    elif args.scheme == "predictive":
+        model = predictive.Model()
+    
+    if args.transform == "once":
+        transform = lambda data: fragment_once(data, args.drop_p)
+    elif args.transform == "twice":
+        transform = lambda data: fragment_twice(data, args.drop_p)
+        
+    
     collate = double_collate
 
     print("Loading model...")
@@ -89,6 +85,12 @@ def main():
         "../resource/dataset/" + args.dataset, dataset=args.dataset, transform=transform,
     )
 
+    if args.use_valid:
+        perm = list(range(len(dataset)))
+        random.shuffle(perm)
+        valid_dataset = dataset[perm[:100000]]
+        #dataset = dataset[perm[100000:]]
+    
     loader = torch.utils.data.DataLoader(
         dataset,
         batch_size=args.batch_size,
@@ -96,6 +98,16 @@ def main():
         num_workers=args.num_workers,
         collate_fn=collate,
     )
+
+    if args.use_valid:
+        valid_loader = torch.utils.data.DataLoader(
+            valid_dataset,
+            batch_size=args.batch_size,
+            shuffle=False,
+            num_workers=args.num_workers,
+            collate_fn=collate,
+        )
+
 
     if args.use_neptune:
         print("Loading neptune...")
@@ -118,7 +130,7 @@ def main():
         if args.use_neptune:
             run[f"epoch"].log(epoch)
 
-        for batch0, batch1 in (loader):
+        for batch0, batch1 in tqdm(loader):
             step += 1
             train_statistics = train_step(batch0, batch1, model, optim)
             for key, val in train_statistics.items():
@@ -134,14 +146,33 @@ def main():
                 cum_train_statistics = defaultdict(float)
 
                 print(f"[{asctime()}] {prompt}")
+            
+            break
+        
+        if args.use_valid:
+            cum_valid_statistics = defaultdict(float)
+            for batch0, batch1 in tqdm(valid_loader):
+                with torch.no_grad():
+                    train_statistics = train_step(batch0, batch1, model, optim)
+                
+                for key, val in train_statistics.items():
+                    cum_train_statistics[key] += val / len(valid_loader)
+
+                prompt = ""
+                for key, val in cum_valid_statistics.items():
+                    prompt += f"valid/{key}: {val:.2f} "
+                    if args.use_neptune:
+                        run[f"valid/{key}"].log(val)
+
+                print(f"[{asctime()}] {prompt}")
 
         if args.use_neptune:
             torch.save(
-                model.encoder0.state_dict(), f"../resource/result/{run_tag}/model_{epoch:02d}.pt"
+                model.encoder.state_dict(), f"../resource/result/{run_tag}/model_{epoch:02d}.pt"
             )
 
     if args.use_neptune:
-        torch.save(model.encoder0.state_dict(), f"../resource/result/{run_tag}/model.pt")
+        torch.save(model.encoder.state_dict(), f"../resource/result/{run_tag}/model.pt")
         run.stop()
 
 

@@ -16,7 +16,7 @@ def subgraph(subset, edge_index, edge_attr=None, relabel_nodes=False, num_nodes=
 
         if relabel_nodes:
             n_idx = torch.zeros(n_mask.size(0), dtype=torch.long, device=device)
-            n_idx[subset] = torch.arange(subset.sum().item(), device=device)
+            n_idx[subset] = torch.arange(subset.long().sum().item(), device=device)
     else:
         n_mask = torch.zeros(num_nodes, dtype=torch.bool)
         n_mask[subset] = 1
@@ -79,77 +79,51 @@ def mask_data(data, mask_p):
      
     return data
 
-def contract(data, contract_p, drop_junction):
+def fragment(data, drop_p):
     if data.frag_y.max() == 0:
         return data
     
     num_nodes = data.x.size(0)
+    num_frags = data.frag_y.max() + 1
     x = data.x.clone()
     frag_y = data.frag_y.clone()
     edge_index = data.edge_index.clone()
     edge_attr = data.edge_attr.clone()
 
-    num_frags = data.frag_y.max().item()+1
-    #num_contract = min(np.random.binomial(num_frags, contract_p), num_frags-1)
-    num_contract = np.random.binomial(num_frags, contract_p)
-    #if drop_junction:   
-    num_contract = min(num_contract, num_frags-1)
-        
-    contract_frags = random.sample(range(num_frags), num_contract)
-    frag_nodes = list(range(num_nodes, num_nodes + num_contract))
+    # 
+    frag_edge_index = frag_y[edge_index]
+    frag_edge_index = frag_edge_index[:, frag_edge_index[0] != frag_edge_index[1]]
     
-    keepnode_mask = torch.ones(num_nodes, dtype=torch.bool)
-    for frag_node, frag in zip(frag_nodes, contract_frags):
-        keepnode_mask[data.frag_y == frag] = False
-        edge_index[data.frag_y[data.edge_index] == frag] = frag_node
+    nxgraph = nx.Graph()
+    nxgraph.add_edges_from(frag_edge_index.t().tolist())
+    num_drop_edges = max(1, int(len(nxgraph.edges()) * drop_p))
+    drop_edges = random.sample(list(nxgraph.edges()), num_drop_edges)
+    nxgraph.remove_edges_from(drop_edges)
     
-    frag_x = torch.zeros(num_contract, x.size(1), dtype=torch.long)
-    x = torch.cat([x[keepnode_mask], frag_x], dim=0)
+    connected_frag_ys = list(random.choice(list(nx.connected_components(nxgraph))))
+    keepfrag_mask = torch.zeros(num_frags, dtype=torch.bool)
+    keepfrag_mask[connected_frag_ys] = True
+    keepnode_mask = keepfrag_mask[frag_y]
     
-    selfloop_mask = edge_index[0] != edge_index[1]
-    edge_index = edge_index[:, selfloop_mask]
-    edge_attr = edge_attr[selfloop_mask, :]
-    
-    if drop_junction:
-        junction_drop_mask = torch.ones(edge_index.size(1), dtype=torch.bool)
-        junction_drop_mask[edge_index[0] > num_nodes - 1] = False
-        junction_drop_mask[edge_index[1] > num_nodes - 1] = False
-        
-        edge_index = edge_index[:, junction_drop_mask]
-        edge_attr = edge_attr[junction_drop_mask, :]
-        
-        x = x[:keepnode_mask.long().sum()]
-        
-    num_keepnodes = keepnode_mask.long().sum()
-    node2newnode = -torch.ones(num_nodes, dtype=torch.long)
-    node2newnode[keepnode_mask] = torch.arange(num_keepnodes)
-    node2newnode = torch.cat(
-        [node2newnode, torch.arange(num_keepnodes, num_keepnodes+num_contract)], dim=0
-        )
-    edge_index = node2newnode[edge_index]
-    
-    edge_index, edge_attr = coalesce(
-        edge_index, edge_attr, num_keepnodes+num_contract, num_keepnodes+num_contract
-        )
-        
+    x = x[keepnode_mask]
+    edge_index, edge_attr = subgraph(keepnode_mask, edge_index, edge_attr, relabel_nodes=True, num_nodes=x.size(0))
+
+    #print(x.size())
+    #print(edge_index)
+    #
+    #assert False
+
     data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr)
     
     return data
 
-def contract_once(data, contract_p, mask_p, drop_junction):
-    data0 = mask_data(data, mask_p)
-    data1 = mask_data(data, mask_p)    
-    data1 = contract(data, contract_p, drop_junction)
-    
-    return data0, data1
+def fragment_once(data, drop_p):
+    frag_data = fragment(data, drop_p)
+    return data, frag_data
 
-def contract_both(data, contract_p, mask_p, drop_junction):
-    data0 = mask_data(data, mask_p)
-    data1 = mask_data(data, mask_p)
-    
-    data0 = contract(data0, contract_p, drop_junction)
-    data1 = contract(data1, contract_p, drop_junction)
-    
-    return data0, data1
-    
+def fragment_twice(data, drop_p):
+    frag_data0 = fragment(data, drop_p)
+    frag_data1 = fragment(data, drop_p)
+    return frag_data0, frag_data1
+
     
