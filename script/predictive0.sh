@@ -1,6 +1,6 @@
 #!/bin/bash
 
-RUN_TAG="contrast2"
+RUN_TAG="predictive0"
 MODEL_PATH="../resource/result/${RUN_TAG}/model.pt"
 SUPERVISED_MODEL_PATH="../resource/result/${RUN_TAG}/model_supervised.pt"
 
@@ -9,9 +9,8 @@ echo $MODEL_PATH
 echo $SUPERVISED_MODEL_PATH
 
 python pretrain.py \
---scheme contrastive \
+--scheme predictive \
 --transform_type pair \
---use_double_projector \
 --use_neptune \
 --run_tag $RUN_TAG
 

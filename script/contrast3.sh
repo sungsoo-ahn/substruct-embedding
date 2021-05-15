@@ -9,10 +9,10 @@ echo $MODEL_PATH
 echo $SUPERVISED_MODEL_PATH
 
 python pretrain.py \
---contract_type once \
---contract_p 0.9 \
---mask_p 0.0 \
---drop_junction \
+--scheme contrastive \
+--transform_type pair \
+--use_double_projector \
+--use_dangling_mask \
 --use_neptune \
 --run_tag $RUN_TAG
 

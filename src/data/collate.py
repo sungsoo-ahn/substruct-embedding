@@ -41,7 +41,7 @@ def collate(data_list):
     return batch.contiguous()
 
 def double_collate(data_list):
-    data_list0 = [data_tuple[0] for data_tuple in data_list]
-    data_list1 = [data_tuple[1] for data_tuple in data_list]
+    data_list0 = [data_tuple[0] for data_tuple in data_list if data_tuple[0] is not None]
+    data_list1 = [data_tuple[1] for data_tuple in data_list if data_tuple[1] is not None]
 
     return collate(data_list0), collate(data_list1)

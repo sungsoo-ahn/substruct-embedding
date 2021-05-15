@@ -8,7 +8,7 @@ import torch
 
 from frag_dataset import FragDataset
 from scheme import contrastive, predictive
-from data.transform import fragment_once, fragment_twice
+from data.transform import fragment_data
 from data.collate import double_collate
 import neptune.new as neptune
 
@@ -32,12 +32,26 @@ def train_step(batch0, batch1, model, optim):
 
     return statistics
 
+def valid_step(batch0, batch1, model, optim):
+    model.train()
+
+    statistics = dict()
+    logits, labels = model.compute_logits_and_labels(batch0, batch1)
+    loss = model.criterion(logits, labels)
+    acc = model.compute_accuracy(logits, labels)
+
+    statistics["loss"] = loss.detach()
+    statistics["acc"] = acc
+    
+    return statistics
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", type=str, default="zinc_brics")
     parser.add_argument("--num_epochs", type=int, default=20)
     parser.add_argument("--log_freq", type=float, default=100)
-
+    parser.add_argument("--resume_path", type=str, default="")
 
     parser.add_argument("--batch_size", type=int, default=256)
     parser.add_argument("--num_workers", type=int, default=8)
@@ -51,8 +65,11 @@ def main():
 
     parser.add_argument("--drop_p", type=float, default=0.5)
     parser.add_argument("--scheme", type=str, default="contrastive")
-    parser.add_argument("--transform", type=str, default="once")
+    parser.add_argument("--transform_type", type=str, default="once")
     parser.add_argument("--use_valid", action="store_true")
+    
+    parser.add_argument("--use_double_projector", action="store_true")
+    parser.add_argument("--use_dangling_mask", action="store_true")
 
     args = parser.parse_args()
 
@@ -62,14 +79,14 @@ def main():
         torch.cuda.manual_seed_all(0)
 
     if args.scheme == "contrastive":
-        model = contrastive.Model()
+        model = contrastive.Model(
+            use_double_projector=args.use_double_projector, 
+            use_dangling_mask=args.use_dangling_mask
+            )
     elif args.scheme == "predictive":
-        model = predictive.Model()
+        model = predictive.Model(use_dangling_mask=args.use_dangling_mask)
     
-    if args.transform == "once":
-        transform = lambda data: fragment_once(data, args.drop_p)
-    elif args.transform == "twice":
-        transform = lambda data: fragment_twice(data, args.drop_p)
+    transform = lambda data: fragment_data(data, args.drop_p, args.transform_type)
         
     
     collate = double_collate
@@ -79,6 +96,17 @@ def main():
     optim = torch.optim.Adam(
         [param for param in model.parameters() if param.requires_grad], lr=args.lr
     )
+    
+    if args.resume_path != "":
+        print("Loading checkpoint...")
+        checkpoint = torch.load(args.resume_path)
+        start_epoch = checkpoint["epoch"]
+        model.load_state_dict(checkpoint["model"])
+        optim.load_state_dict(checkpoint["optim"])
+        run_id = checkpoint["run_id"]
+    else:
+        start_epoch = 0
+        run_id = None
 
     print("Loading dataset...")
     dataset = FragDataset(
@@ -88,8 +116,8 @@ def main():
     if args.use_valid:
         perm = list(range(len(dataset)))
         random.shuffle(perm)
-        valid_dataset = dataset[perm[:100000]]
-        #dataset = dataset[perm[100000:]]
+        valid_dataset = dataset[torch.tensor(perm[:100000])]
+        dataset = dataset[torch.tensor(perm[100000:])]
     
     loader = torch.utils.data.DataLoader(
         dataset,
@@ -115,17 +143,19 @@ def main():
             project="sungsahn0215/ssg",
             name="group_contrast",
             source_files=["*.py", "**/*.py"],
+            run=run_id
             )
         run["parameters"] = vars(args)
+        run_id = run["sys/id"].fetch()
         if args.run_tag == "":
-            run_tag = run["sys/id"].fetch()
+            run_tag = run_id
         else:
             run_tag = args.run_tag
         os.makedirs(f"../resource/result/{run_tag}", exist_ok=True)
 
     step = 0
     cum_train_statistics = defaultdict(float)
-    for epoch in range(args.num_epochs):
+    for epoch in range(start_epoch+1, args.num_epochs):
         print(f"[{asctime()}] epoch: {epoch}")
         if args.use_neptune:
             run[f"epoch"].log(epoch)
@@ -146,27 +176,33 @@ def main():
                 cum_train_statistics = defaultdict(float)
 
                 print(f"[{asctime()}] {prompt}")
-            
-            break
-        
+                    
         if args.use_valid:
             cum_valid_statistics = defaultdict(float)
             for batch0, batch1 in tqdm(valid_loader):
                 with torch.no_grad():
-                    train_statistics = train_step(batch0, batch1, model, optim)
+                    valid_statistics = valid_step(batch0, batch1, model, optim)
                 
-                for key, val in train_statistics.items():
-                    cum_train_statistics[key] += val / len(valid_loader)
+                for key, val in valid_statistics.items():
+                    cum_valid_statistics[key] += val / len(valid_loader)
 
-                prompt = ""
-                for key, val in cum_valid_statistics.items():
-                    prompt += f"valid/{key}: {val:.2f} "
-                    if args.use_neptune:
-                        run[f"valid/{key}"].log(val)
+            prompt = ""
+            for key, val in cum_valid_statistics.items():
+                prompt += f"valid/{key}: {val:.2f} "
+                if args.use_neptune:
+                    run[f"valid/{key}"].log(val)
 
-                print(f"[{asctime()}] {prompt}")
+            print(f"[{asctime()}] {prompt}")
 
+        
         if args.use_neptune:
+            checkpoint = {
+                "epoch": epoch,
+                "optim": optim.state_dict(),
+                "model": model.state_dict(),
+                "run_id": run_id,
+            }
+            torch.save(checkpoint, f"../resource/result/{run_tag}/checkpoint.pt")
             torch.save(
                 model.encoder.state_dict(), f"../resource/result/{run_tag}/model_{epoch:02d}.pt"
             )

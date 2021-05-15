@@ -79,9 +79,12 @@ def mask_data(data, mask_p):
      
     return data
 
-def fragment(data, drop_p):
+def fragment(data, drop_p, choose_pair):
     if data.frag_y.max() == 0:
-        return data
+        if choose_pair:
+            return None, None
+        else:
+            return data
     
     num_nodes = data.x.size(0)
     num_frags = data.frag_y.max() + 1
@@ -100,30 +103,69 @@ def fragment(data, drop_p):
     drop_edges = random.sample(list(nxgraph.edges()), num_drop_edges)
     nxgraph.remove_edges_from(drop_edges)
     
-    connected_frag_ys = list(random.choice(list(nx.connected_components(nxgraph))))
-    keepfrag_mask = torch.zeros(num_frags, dtype=torch.bool)
-    keepfrag_mask[connected_frag_ys] = True
-    keepnode_mask = keepfrag_mask[frag_y]
+    if choose_pair:
+        u, v = random.choice(drop_edges)
+        
+        connected_frag_ys0 = list(nx.node_connected_component(nxgraph, u))
+        connected_frag_ys1 = list(nx.node_connected_component(nxgraph, v))
+        
+        keepfrag_mask0 = torch.zeros(num_frags, dtype=torch.bool)
+        keepfrag_mask0[connected_frag_ys0] = True
+        keepnode_mask0 = keepfrag_mask0[frag_y]
+        
+        keepfrag_mask1 = torch.zeros(num_frags, dtype=torch.bool)
+        keepfrag_mask1[connected_frag_ys1] = True
+        keepnode_mask1 = keepfrag_mask1[frag_y]
+               
+        x0 = x[keepnode_mask0]
+        edge_index0, edge_attr0 = subgraph(
+            keepnode_mask0, edge_index, edge_attr, relabel_nodes=True, num_nodes=x.size(0)
+            )
+        
+        x1 = x[keepnode_mask1]
+        edge_index1, edge_attr1 = subgraph(
+            keepnode_mask1, edge_index, edge_attr, relabel_nodes=True, num_nodes=x.size(0)
+            )
+        
+        data0 = Data(x=x0, edge_index=edge_index0, edge_attr=edge_attr0)
+        data1 = Data(x=x1, edge_index=edge_index1, edge_attr=edge_attr1)
+        
+        uv_edge = edge_index[:, frag_y[edge_index[0]] == u]
+        uv_edge = uv_edge[:, frag_y[uv_edge[1]] == v]
+        uu, vv = uv_edge.tolist()
+
+        dangling_mask = torch.zeros(num_nodes, dtype=torch.bool)
+        dangling_mask[uu] = True
+        dangling_mask[vv] = True
+        data0.dangling_mask = dangling_mask[keepnode_mask0]
+        
+        data1.dangling_mask = dangling_mask[keepnode_mask1]
+        
+        return data0, data1
+        
+    else:
+        connected_frag_ys = list(random.choice(list(nx.connected_components(nxgraph))))
+        keepfrag_mask = torch.zeros(num_frags, dtype=torch.bool)
+        keepfrag_mask[connected_frag_ys] = True
+        keepnode_mask = keepfrag_mask[frag_y]
+        
+        x = x[keepnode_mask]
+        edge_index, edge_attr = subgraph(
+            keepnode_mask, edge_index, edge_attr, relabel_nodes=True, num_nodes=x.size(0)
+            )
     
-    x = x[keepnode_mask]
-    edge_index, edge_attr = subgraph(keepnode_mask, edge_index, edge_attr, relabel_nodes=True, num_nodes=x.size(0))
-
-    #print(x.size())
-    #print(edge_index)
-    #
-    #assert False
-
-    data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr)
+        data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr)
     
-    return data
+        return data
 
-def fragment_once(data, drop_p):
-    frag_data = fragment(data, drop_p)
-    return data, frag_data
-
-def fragment_twice(data, drop_p):
-    frag_data0 = fragment(data, drop_p)
-    frag_data1 = fragment(data, drop_p)
-    return frag_data0, frag_data1
-
+def fragment_data(data, drop_p, type):
+    if type == "once":
+        frag_data0 = data
+        frag_data1 = fragment(data, drop_p, False)
+    elif type == "twice":
+        frag_data0 = fragment(data, drop_p, False)
+        frag_data1 = fragment(data, drop_p, False)
+    elif type == "pair":
+        frag_data0, frag_data1 = fragment(data, drop_p, True)
     
+    return frag_data0, frag_data1  
