@@ -11,6 +11,7 @@ echo $SUPERVISED_MODEL_PATH
 python pretrain.py \
 --scheme contrastive \
 --transform_type twice \
+--use_valid \
 --use_neptune \
 --run_tag $RUN_TAG
 

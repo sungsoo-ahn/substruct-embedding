@@ -12,6 +12,7 @@ python pretrain.py \
 --scheme contrastive \
 --transform_type pair \
 --use_double_projector \
+--use_valid \
 --use_neptune \
 --run_tag $RUN_TAG
 

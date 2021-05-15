@@ -114,6 +114,7 @@ def main():
     )
 
     if args.use_valid:
+        print("Splitting dataset...")
         perm = list(range(len(dataset)))
         random.shuffle(perm)
         valid_dataset = dataset[torch.tensor(perm[:100000])]
@@ -160,7 +161,7 @@ def main():
         if args.use_neptune:
             run[f"epoch"].log(epoch)
 
-        for batch0, batch1 in tqdm(loader):
+        for batch0, batch1 in (loader):
             step += 1
             train_statistics = train_step(batch0, batch1, model, optim)
             for key, val in train_statistics.items():
@@ -179,7 +180,7 @@ def main():
                     
         if args.use_valid:
             cum_valid_statistics = defaultdict(float)
-            for batch0, batch1 in tqdm(valid_loader):
+            for batch0, batch1 in (valid_loader):
                 with torch.no_grad():
                     valid_statistics = valid_step(batch0, batch1, model, optim)
                 

@@ -12,6 +12,7 @@ python pretrain.py \
 --scheme predictive \
 --use_dangling_mask \
 --transform_type pair \
+--use_valid \
 --use_neptune \
 --run_tag $RUN_TAG
 
