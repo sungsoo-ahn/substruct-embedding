@@ -1,7 +1,7 @@
 import torch
 from torch_geometric.data import Data
 
-def collate(data_list):    
+def collate(data_list):
     keys = [set(data.keys) for data in data_list]
     keys = list(set.union(*keys))
     assert 'batch' not in keys
@@ -12,7 +12,7 @@ def collate(data_list):
         batch[key] = []
     batch.batch = []
     batch.batch_num_nodes = []
-    
+
     cumsum_node = 0
     cumsum_edge = 0
 
@@ -27,21 +27,21 @@ def collate(data_list):
 
         cumsum_node += num_nodes
         cumsum_edge += data.edge_index.shape[1]
-        
+
         batch.batch_num_nodes.append(torch.tensor([num_nodes]))
 
     for key in keys:
         batch[key] = torch.cat(
             batch[key], dim=data_list[0].cat_dim(key, batch[key][0]))
-    
+
     batch.batch_num_nodes = torch.cat(batch.batch_num_nodes, dim=0)
-    
+
     batch.batch = torch.cat(batch.batch, dim=-1)
-    
+
     return batch.contiguous()
 
 def double_collate(data_list):
     data_list0 = [data_tuple[0] for data_tuple in data_list]
     data_list1 = [data_tuple[1] for data_tuple in data_list]
-    
-    return collate(data_list0 + data_list1)
+
+    return collate(data_list0), collate(data_list1)

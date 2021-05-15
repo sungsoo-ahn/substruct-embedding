@@ -11,8 +11,8 @@ echo $SUPERVISED_MODEL_PATH
 python pretrain.py \
 --contract_type once \
 --contract_p 0.9 \
---mask_p 0.15 \
---batch_size 1024 \
+--mask_p 0.0 \
+--drop_junction \
 --use_neptune \
 --run_tag $RUN_TAG
 
