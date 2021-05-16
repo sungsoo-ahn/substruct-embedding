@@ -2,6 +2,7 @@
 
 RUN_TAG="predictive3"
 MODEL_PATH="../resource/result/${RUN_TAG}/model.pt"
+RESUME_PATH="../resource/result/${RUN_TAG}/checkpoint.pt"
 SUPERVISED_MODEL_PATH="../resource/result/${RUN_TAG}/model_supervised.pt"
 
 echo $RUN_TAG

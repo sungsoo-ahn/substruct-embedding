@@ -2,6 +2,7 @@
 
 RUN_TAG="predictive0"
 MODEL_PATH="../resource/result/${RUN_TAG}/model.pt"
+RESUME_PATH="../resource/result/${RUN_TAG}/checkpoint.pt"
 SUPERVISED_MODEL_PATH="../resource/result/${RUN_TAG}/model_supervised.pt"
 
 echo $RUN_TAG
@@ -13,6 +14,7 @@ python pretrain.py \
 --transform_type pair \
 --use_valid \
 --use_neptune \
+--resume_path $RESUME_PATH \
 --run_tag $RUN_TAG
 
 python finetune.py \
