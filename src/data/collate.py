@@ -2,6 +2,8 @@ import torch
 from torch_geometric.data import Data
 
 def collate(data_list):
+    data_list = [data for data in data_list if data is not None]
+    
     keys = [set(data.keys) for data in data_list]
     keys = list(set.union(*keys))
     assert 'batch' not in keys
@@ -11,32 +13,49 @@ def collate(data_list):
     for key in keys:
         batch[key] = []
     batch.batch = []
+    batch.frag_batch = []
     batch.batch_num_nodes = []
 
     cumsum_node = 0
     cumsum_edge = 0
-
+    cumsum_frag = 0
+    frag_cnt = 0
     for i, data in enumerate(data_list):
         num_nodes = data.num_nodes
+        num_frags = data.frag_num_nodes.size(0)
+        
         batch.batch.append(torch.full((num_nodes, ), i, dtype=torch.long))
+        batch.frag_batch.append(
+            torch.repeat_interleave(
+                torch.arange(cumsum_frag, cumsum_frag+num_frags), data.frag_num_nodes
+                )
+            )
         for key in data.keys:
             item = data[key]
             if key == 'edge_index':
                 item = item + cumsum_node
+            elif key == "dangling_edge_index":
+                item = item + cumsum_frag
+                
             batch[key].append(item)
 
         cumsum_node += num_nodes
         cumsum_edge += data.edge_index.shape[1]
-
+        cumsum_frag += num_frags
+        
         batch.batch_num_nodes.append(torch.tensor([num_nodes]))
 
     for key in keys:
-        batch[key] = torch.cat(
-            batch[key], dim=data_list[0].cat_dim(key, batch[key][0]))
+        if key == "dangling_edge_index":
+            batch[key] = torch.cat(batch[key], dim=1)
+        else:
+            batch[key] = torch.cat(batch[key], dim=data_list[0].cat_dim(key, batch[key][0]))
 
     batch.batch_num_nodes = torch.cat(batch.batch_num_nodes, dim=0)
 
     batch.batch = torch.cat(batch.batch, dim=-1)
+    batch.frag_batch = torch.cat(batch.frag_batch, dim=-1)           
+            
 
     return batch.contiguous()
 
@@ -82,13 +101,17 @@ def merge_collate(data_list):
     edge_attr = torch.cat([batch0.edge_attr, batch1.edge_attr, dangling_edge_attr], dim=0)
 
     pos_batch, node2posnode = torch.sort(torch.cat([batch0.batch, batch1.batch], dim=0))
+    posnode2node = torch.empty_like(node2posnode)
+    posnode2node[node2posnode] = torch.arange(node2posnode.size(0))
     
     neg_batch1 = batch1.batch + 1
     neg_batch1[neg_batch1 == neg_batch1.max()] = 0
     neg_batch, node2negnode = torch.sort(torch.cat([batch0.batch, neg_batch1], dim=0))
+    negnode2node = torch.empty_like(node2negnode)
+    negnode2node[node2negnode] = torch.arange(node2negnode.size(0))
     
-    pos_x = x[node2posnode]
-    neg_x = x[node2negnode]
+    pos_x = x[posnode2node]
+    neg_x = x[negnode2node]
     
     pos_edge_index = node2posnode[pos_edge_index]
     neg_edge_index = node2negnode[neg_edge_index]

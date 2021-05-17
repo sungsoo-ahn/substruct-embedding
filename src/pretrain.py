@@ -8,18 +8,18 @@ import torch
 
 from frag_dataset import FragDataset
 from scheme import contrastive, predictive
-from data.transform import fragment
-from data.collate import double_collate
+from data.transform import fragment, multi_fragment
+from data.collate import collate
 import neptune.new as neptune
 
 from tqdm import tqdm
 from time import asctime
 
-def train_step(batch0, batch1, model, optim):
+def train_step(batchs, model, optim):
     model.train()
 
     statistics = dict()
-    logits, labels = model.compute_logits_and_labels(batch0, batch1)
+    logits, labels = model.compute_logits_and_labels(batchs)
     loss = model.criterion(logits, labels)
     acc = model.compute_accuracy(logits, labels)
 
@@ -32,11 +32,11 @@ def train_step(batch0, batch1, model, optim):
 
     return statistics
 
-def valid_step(batch0, batch1, model):
+def valid_step(batchs, model):
     model.train()
 
     statistics = dict()
-    logits, labels = model.compute_logits_and_labels(batch0, batch1)
+    logits, labels = model.compute_logits_and_labels(batchs)
     loss = model.criterion(logits, labels)
     acc = model.compute_accuracy(logits, labels)
 
@@ -83,9 +83,10 @@ def main():
     elif args.scheme == "predictive":
         model = predictive.Model()
         
-    transform = lambda data: fragment(data, args.drop_p, args.min_num_nodes, args.aug_x)    
-    collate = double_collate
-
+    #transform = lambda data: fragment(data, args.drop_p, args.min_num_nodes, args.aug_x)    
+    transform = lambda data: multi_fragment(data, args.drop_p)
+    
+    
     print("Loading model...")
     model = model.cuda()
     optim = torch.optim.Adam(
@@ -107,7 +108,7 @@ def main():
     dataset = FragDataset(
         "../resource/dataset/" + args.dataset, dataset=args.dataset, transform=transform,
     )
-
+    
     if args.use_valid:
         print("Splitting dataset...")
         perm = list(range(len(dataset)))
@@ -156,9 +157,9 @@ def main():
         if args.use_neptune:
             run[f"epoch"].log(epoch)
 
-        for batch0, batch1 in tqdm(loader):
+        for batchs in tqdm(loader):
             step += 1
-            train_statistics = train_step(batch0, batch1, model, optim)
+            train_statistics = train_step(batchs, model, optim)
             for key, val in train_statistics.items():
                 cum_train_statistics[key] += val / args.log_freq
 
@@ -175,9 +176,9 @@ def main():
                     
         if args.use_valid:
             cum_valid_statistics = defaultdict(float)
-            for batch0, batch1 in (valid_loader):
+            for batchs in (valid_loader):
                 with torch.no_grad():
-                    valid_statistics = valid_step(batch0, batch1, model)
+                    valid_statistics = valid_step(batchs, model)
                 
                 for key, val in valid_statistics.items():
                     cum_valid_statistics[key] += val / len(valid_loader)
