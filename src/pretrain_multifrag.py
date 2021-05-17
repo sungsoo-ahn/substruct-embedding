@@ -7,9 +7,9 @@ import random
 import torch
 
 from frag_dataset import FragDataset
-from scheme import contrastive
-from data.transform import fragment
-from data.collate import double_collate
+from scheme import multifrag_contrastive
+from data.transform import multi_fragment
+from data.collate import multifrag_collate
 import neptune.new as neptune
 
 from tqdm import tqdm
@@ -49,7 +49,7 @@ def valid_step(batchs, model):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", type=str, default="zinc_brics")
-    parser.add_argument("--num_epochs", type=int, default=100)
+    parser.add_argument("--num_epochs", type=int, default=20)
     parser.add_argument("--log_freq", type=float, default=100)
     parser.add_argument("--resume_path", type=str, default="")
 
@@ -78,11 +78,16 @@ def main():
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(0)
 
-    model = contrastive.Model(proj_type=args.proj_type)
+    #if args.scheme == "contrastive":
+    #    model = contrastive.Model(proj_type=args.proj_type)
+    #elif args.scheme == "predictive":
+    #    model = predictive.Model()
         
-    transform = lambda data: fragment(data, args.drop_p, args.min_num_nodes, args.aug_x)    
-    collate = double_collate
-
+    #transform = lambda data: fragment(data, args.drop_p, args.min_num_nodes, args.aug_x)    
+    model = multifrag_contrastive.Model()
+    transform = lambda data: multi_fragment(data, args.drop_p)
+    
+    
     print("Loading model...")
     model = model.cuda()
     optim = torch.optim.Adam(
@@ -104,7 +109,7 @@ def main():
     dataset = FragDataset(
         "../resource/dataset/" + args.dataset, dataset=args.dataset, transform=transform,
     )
-
+    
     if args.use_valid:
         print("Splitting dataset...")
         perm = list(range(len(dataset)))
@@ -117,7 +122,7 @@ def main():
         batch_size=args.batch_size,
         shuffle=True,
         num_workers=args.num_workers,
-        collate_fn=collate,
+        collate_fn=multifrag_collate,
     )
 
     if args.use_valid:

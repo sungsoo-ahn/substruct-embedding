@@ -4,8 +4,7 @@ import networkx as nx
 import torch
 from torch_geometric.data import Data
 from torch_sparse import coalesce
-
-
+    
 def subgraph(subset, edge_index, edge_attr=None, relabel_nodes=False, num_nodes=None):
     device = edge_index.device
     if isinstance(subset, list) or isinstance(subset, tuple):
@@ -106,7 +105,6 @@ def fragment(data, drop_p, min_num_nodes, aug_x):
     
     if len(connected_frag_ys0) + len(connected_frag_ys1) < min_num_nodes:
         return None, None
-        
     
     keepfrag_mask0 = torch.zeros(num_frags, dtype=torch.bool)
     keepfrag_mask0[connected_frag_ys0] = True
@@ -145,3 +143,87 @@ def fragment(data, drop_p, min_num_nodes, aug_x):
         data1.x = torch.cat([data1.x, data1.dangling_mask.unsqueeze(1).long()], dim=1)
     
     return data0, data1
+
+def multi_fragment(data, mask_p):
+    if data.frag_y.max() == 0:
+        return None
+      
+    num_nodes = data.x.size(0)
+    
+    ### sample edges to drop
+    # get undirected edge_index edge_attr
+    uniq_mask = data.edge_index[0] < data.edge_index[1]
+    uniq_edge_index = data.edge_index[:, uniq_mask]
+    uniq_edge_attr = data.edge_attr[uniq_mask, :]
+    
+    # get inter edge_index edge_attr
+    inter_mask = data.frag_y[uniq_edge_index[0]] != data.frag_y[uniq_edge_index[1]]
+    uniq_inter_edge_index = uniq_edge_index[:, inter_mask]
+    uniq_inter_edge_attr = uniq_edge_attr[inter_mask, :]
+    
+    # get intra edge_index edge_attr
+    intra_mask = data.frag_y[uniq_edge_index[0]] == data.frag_y[uniq_edge_index[1]]
+    uniq_intra_edge_index = uniq_edge_index[:, intra_mask]
+    uniq_intra_edge_attr = uniq_edge_attr[intra_mask, :]
+    
+    # get drop edges
+    num_uniq_inter_edges = uniq_inter_edge_index.size(1)
+    num_drops = max(1, int(num_uniq_inter_edges * mask_p))
+    drop_idxs = random.sample(range(num_uniq_inter_edges), num_drops)
+    drop_edge_index = uniq_inter_edge_index[:, drop_idxs]   
+    
+    # get keep edge_index edge_attr
+    keep_idxs = [idx for idx in range(num_uniq_inter_edges) if idx not in drop_idxs]
+    uniq_inter_edge_index = uniq_inter_edge_index[:, keep_idxs]
+    uniq_inter_edge_attr = uniq_inter_edge_attr[keep_idxs, :]
+    
+    # create new data with dropped edges
+    new_x = data.x.clone()
+    
+    new_uniq_edge_index0 = torch.cat([uniq_intra_edge_index, uniq_inter_edge_index], dim=1)
+    new_uniq_edge_index1 = torch.roll(new_uniq_edge_index0, shifts=1, dims=0)
+    new_edge_index = torch.cat([new_uniq_edge_index0, new_uniq_edge_index1], dim=1)
+    
+    new_uniq_edge_attr = torch.cat([uniq_intra_edge_attr, uniq_inter_edge_attr])
+    new_edge_attr = torch.cat([new_uniq_edge_attr, new_uniq_edge_attr], dim=0)
+    
+    # extract connected fragments
+    nx_graph = nx.Graph()
+    nx_graph.add_nodes_from(range(num_nodes))
+    nx_graph.add_edges_from(uniq_intra_edge_index.t().tolist())
+    nx_graph.add_edges_from(uniq_inter_edge_index.t().tolist())
+    frag_nodes_list = list(map(list, nx.connected_components(nx_graph)))
+    frag_num_nodes = torch.tensor([len(frag_nodes) for frag_nodes in frag_nodes_list])
+        
+    # create mapping to sort fragments
+    newnode2node = torch.tensor(
+        [node for frag_nodes in frag_nodes_list for node in frag_nodes], dtype=torch.long
+        )
+    node2newnode = torch.empty_like(newnode2node)
+    node2newnode[newnode2node] = torch.arange(num_nodes)
+                    
+    # relabel 
+    new_x = new_x[newnode2node]
+    new_edge_index = node2newnode[new_edge_index]
+    new_edge_index, new_edge_attr = coalesce(new_edge_index, new_edge_attr, num_nodes, num_nodes)
+    drop_edge_index = node2newnode[drop_edge_index]
+    
+    # create dangling_mask
+    dangling_mask = torch.zeros(num_nodes, dtype=torch.bool)
+    dangling_mask[drop_edge_index[0]] = True
+    dangling_mask[drop_edge_index[1]] = True
+    
+    # create dangling_adj
+    num_dangling_nodes = dangling_mask.long().sum().item()
+    node2dangling_node = torch.full((num_nodes, ), -1, dtype=torch.long)
+    node2dangling_node[dangling_mask] = torch.arange(num_dangling_nodes)
+    dangling_edge_index = node2dangling_node[drop_edge_index]
+    #dangling_adj = to_dense_adj(dangling_drop_edge_index)
+    
+    # create new data
+    new_data = Data(x=new_x, edge_index=new_edge_index, edge_attr=new_edge_attr)
+    new_data.frag_num_nodes = frag_num_nodes
+    new_data.dangling_mask = dangling_mask
+    new_data.dangling_edge_index = dangling_edge_index
+
+    return new_data
