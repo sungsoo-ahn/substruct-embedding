@@ -181,7 +181,7 @@ def multi_fragment(data, mask_p):
     new_x = data.x.clone()
     
     new_uniq_edge_index0 = torch.cat([uniq_intra_edge_index, uniq_inter_edge_index], dim=1)
-    new_uniq_edge_index1 = torch.roll(new_uniq_edge_index0, shifts=0, dims=0)
+    new_uniq_edge_index1 = torch.roll(new_uniq_edge_index0, shifts=1, dims=0)
     new_edge_index = torch.cat([new_uniq_edge_index0, new_uniq_edge_index1], dim=1)
     
     new_uniq_edge_attr = torch.cat([uniq_intra_edge_attr, uniq_inter_edge_attr])
@@ -225,5 +225,5 @@ def multi_fragment(data, mask_p):
     new_data.frag_num_nodes = frag_num_nodes
     new_data.dangling_mask = dangling_mask
     new_data.dangling_edge_index = dangling_edge_index
-        
+
     return new_data
