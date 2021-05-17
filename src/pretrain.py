@@ -25,7 +25,6 @@ def train_step(batch0, batch1, model, optim):
 
     statistics["loss"] = loss.detach()
     statistics["acc"] = acc
-    statistics["logits_size"] = logits.size(0)
     
     optim.zero_grad()
     loss.backward()
