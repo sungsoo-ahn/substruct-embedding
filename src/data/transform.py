@@ -79,7 +79,7 @@ def mask_data(data, mask_p):
      
     return data
 
-def fragment(data, drop_p, min_num_nodes):
+def fragment(data, drop_p, min_num_nodes, aug_x):
     if data.frag_y.max() == 0:
         return None, None
     
@@ -139,5 +139,9 @@ def fragment(data, drop_p, min_num_nodes):
     data0.dangling_mask = dangling_mask[keepnode_mask0]
     
     data1.dangling_mask = dangling_mask[keepnode_mask1]
+    
+    if aug_x:
+        data0.x = torch.cat([data0.x, data0.dangling_mask.unsqueeze(1).long()], dim=1)
+        data1.x = torch.cat([data1.x, data1.dangling_mask.unsqueeze(1).long()], dim=1)
     
     return data0, data1
