@@ -68,6 +68,7 @@ def main():
     parser.add_argument("--drop_p", type=float, default=0.5)
     parser.add_argument("--min_num_nodes", type=int, default=0)
     parser.add_argument("--proj_type", type=int, default=0)
+    parser.add_argument("--aug_x", action="store_true")
     
     args = parser.parse_args()
 
@@ -77,7 +78,7 @@ def main():
         torch.cuda.manual_seed_all(0)
 
     model = contrastive.Model(proj_type=args.proj_type)
-    transform = lambda data: fragment(data, args.drop_p, args.min_num_nodes)    
+    transform = lambda data: fragment(data, args.drop_p, args.min_num_nodes, args.aug_x)    
     collate = double_collate
 
     print("Loading model...")
@@ -150,7 +151,7 @@ def main():
         if args.use_neptune:
             run[f"epoch"].log(epoch)
 
-        for batch0, batch1 in tqdm(loader):
+        for batch0, batch1 in (loader):
             step += 1
             train_statistics = train_step(batch0, batch1, model, optim)
             for key, val in train_statistics.items():

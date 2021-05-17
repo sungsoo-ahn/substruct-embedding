@@ -1,6 +1,6 @@
 #!/bin/bash
 
-RUN_TAG="contrast0"
+RUN_TAG="contrast5"
 MODEL_PATH="../resource/result/${RUN_TAG}/model.pt"
 RESUME_PATH="../resource/result/${RUN_TAG}/checkpoint.pt"
 SUPERVISED_MODEL_PATH="../resource/result/${RUN_TAG}/model_supervised.pt"
@@ -12,6 +12,7 @@ echo $SUPERVISED_MODEL_PATH
 python pretrain.py \
 --num_epochs 50 \
 --use_neptune \
+--aug_x \
 --run_tag $RUN_TAG
 
 python finetune.py \
@@ -24,6 +25,7 @@ python pretrain.py \
 --num_epochs 100 \
 --resume_path $RESUME_PATH \
 --use_neptune \
+--aug_x \
 --run_tag $RUN_TAG
 
 python finetune.py \
