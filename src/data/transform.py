@@ -79,7 +79,35 @@ def mask_data(data, mask_p):
      
     return data
 
-def fragment(data, drop_p, choose_pair):
+def fragment(data, drop_p):
+    if data.frag_y.max() == 0:
+        if choose_pair:
+            return None, None
+        else:
+            return data
+    
+    num_nodes = data.x.size(0)
+    num_frags = data.frag_y.max() + 1
+    x = data.x.clone()
+    frag_y = data.frag_y.clone()
+    edge_index = data.edge_index.clone()
+    edge_attr = data.edge_attr.clone()
+
+    # 
+    frag_edge_index = frag_y[edge_index]
+    frag_edge_index = frag_edge_index[:, frag_edge_index[0] != frag_edge_index[1]]
+    
+    nxgraph = nx.Graph()
+    nxgraph.add_edges_from(frag_edge_index.t().tolist())
+    num_drop_edges = max(1, int(len(nxgraph.edges()) * drop_p))
+    drop_edges = random.sample(list(nxgraph.edges()), num_drop_edges)
+    nxgraph.remove_edges_from(drop_edges)
+    
+    connected_frags = list(nx.connected_components(nxgraph)))
+    connected_frag_y = torch.zeros()
+
+
+def old_fragment(data, drop_p, choose_pair):
     if data.frag_y.max() == 0:
         if choose_pair:
             return None, None
@@ -168,4 +196,4 @@ def fragment_data(data, drop_p, type):
     elif type == "pair":
         frag_data0, frag_data1 = fragment(data, drop_p, True)
     
-    return frag_data0, frag_data1  
+    return frag_data0, frag_data1

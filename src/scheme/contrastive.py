@@ -4,6 +4,14 @@ from model import GNN, GCNConv
 from torch_geometric.nn import global_mean_pool
 
 
+def build_projector(emb_dim):
+    return torch.nn.Sequential(
+        torch.nn.Linear(self.emb_dim, self.emb_dim),
+        torch.nn.ReLU(),
+        torch.nn.Linear(self.emb_dim, self.emb_dim),
+        )
+    
+
 class Model(torch.nn.Module):
     def __init__(self, use_double_projector, use_dangling_mask):
         super(Model, self).__init__()
@@ -15,36 +23,20 @@ class Model(torch.nn.Module):
 
         self.encoder = GNN(self.num_layers, self.emb_dim, drop_ratio=self.drop_rate)
         
-        self.projector0 = torch.nn.Sequential(
-            torch.nn.Linear(self.emb_dim, self.emb_dim),
-            torch.nn.ReLU(),
-            torch.nn.Linear(self.emb_dim, self.emb_dim),
-        )
+        self.projector0 = build_projector(self.emb_dim)
         
         self.use_double_projector = use_double_projector        
         if self.use_double_projector:
-            self.projector1 = torch.nn.Sequential(
-                torch.nn.Linear(self.emb_dim, self.emb_dim),
-                torch.nn.ReLU(),
-                torch.nn.Linear(self.emb_dim, self.emb_dim),
-            )
+            self.projector1 = build_projector(self.emb_dim)
         else:
             self.projector1 = self.projector0
 
         self.use_dangling_mask = use_dangling_mask
         if self.use_dangling_mask:
-            self.dangling_projector0 = torch.nn.Sequential(
-                torch.nn.Linear(self.emb_dim, self.emb_dim),
-                torch.nn.ReLU(),
-                torch.nn.Linear(self.emb_dim, self.emb_dim),
-            )
+            self.dangling_projector0 = build_projector(self.emb_dim)
 
             if self.use_double_projector:
-                self.dangling_projector1 = torch.nn.Sequential(
-                    torch.nn.Linear(self.emb_dim, self.emb_dim),
-                    torch.nn.ReLU(),
-                    torch.nn.Linear(self.emb_dim, self.emb_dim),
-                )
+                self.dangling_projector1 = build_projector(self.emb_dim)
             else:
                 self.dangling_projector1 = self.dangling_projector0
 

@@ -7,7 +7,7 @@ import random
 import torch
 
 from frag_dataset import FragDataset
-from scheme import contrastive, predictive
+from scheme import contrastive, predictive, sinkhorn
 from data.transform import fragment_data
 from data.collate import double_collate
 import neptune.new as neptune
@@ -80,6 +80,11 @@ def main():
 
     if args.scheme == "contrastive":
         model = contrastive.Model(
+            use_double_projector=args.use_double_projector, 
+            use_dangling_mask=args.use_dangling_mask
+            )
+    elif args.scheme == "sinkhorn":
+        model = sinkhorn.Model(
             use_double_projector=args.use_double_projector, 
             use_dangling_mask=args.use_dangling_mask
             )
@@ -161,7 +166,7 @@ def main():
         if args.use_neptune:
             run[f"epoch"].log(epoch)
 
-        for batch0, batch1 in (loader):
+        for batch0, batch1 in tqdm(loader):
             step += 1
             train_statistics = train_step(batch0, batch1, model, optim)
             for key, val in train_statistics.items():
