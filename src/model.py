@@ -234,6 +234,7 @@ class GNN(torch.nn.Module):
 
         torch.nn.init.xavier_uniform_(self.x_embedding1.weight.data)
         torch.nn.init.xavier_uniform_(self.x_embedding2.weight.data)
+        torch.nn.init.xavier_uniform_(self.x_embedding3.weight.data)
 
         ###List of MLPs
         self.gnns = torch.nn.ModuleList()

@@ -6,14 +6,14 @@ from torch_geometric.nn import global_mean_pool
 
 def build_projector(emb_dim):
     return torch.nn.Sequential(
-        torch.nn.Linear(self.emb_dim, self.emb_dim),
+        torch.nn.Linear(emb_dim, emb_dim),
         torch.nn.ReLU(),
-        torch.nn.Linear(self.emb_dim, self.emb_dim),
+        torch.nn.Linear(emb_dim, emb_dim),
         )
     
 
 class Model(torch.nn.Module):
-    def __init__(self, use_double_projector, use_dangling_mask):
+    def __init__(self, proj_type):
         super(Model, self).__init__()
         self.num_layers = 5
         self.emb_dim = 300
@@ -25,39 +25,44 @@ class Model(torch.nn.Module):
         
         self.projector0 = build_projector(self.emb_dim)
         
-        self.use_double_projector = use_double_projector        
-        if self.use_double_projector:
+        self.proj_type = proj_type
+        if self.proj_type == 0:
+            self.projector0 = build_projector(self.emb_dim)
             self.projector1 = build_projector(self.emb_dim)
-        else:
-            self.projector1 = self.projector0
-
-        self.use_dangling_mask = use_dangling_mask
-        if self.use_dangling_mask:
             self.dangling_projector0 = build_projector(self.emb_dim)
-
-            if self.use_double_projector:
-                self.dangling_projector1 = build_projector(self.emb_dim)
-            else:
-                self.dangling_projector1 = self.dangling_projector0
-
+            self.dangling_projector1 = build_projector(self.emb_dim)
+        
+        elif self.proj_type == 1:
+            self.projector = build_projector(self.emb_dim)
+            self.dangling_projector = build_projector(self.emb_dim)
+            self.predictor = build_projector(self.emb_dim)
 
     def compute_logits_and_labels(self, batch0, batch1):
         batch0 = batch0.to(0)
         repr = self.encoder(batch0.x, batch0.edge_index, batch0.edge_attr)
         out = global_mean_pool(repr, batch0.batch)
-        out = self.projector0(out)
-        if self.use_dangling_mask:
+        if self.proj_type == 0:
+            out = self.projector0(out)
             dangling_out = self.dangling_projector0(repr[batch0.dangling_mask])
             out = out + dangling_out
+        elif self.proj_type == 1:
+            out = self.projector(out)
+            dangling_out = self.dangling_projector(repr[batch0.dangling_mask])
+            out = out + dangling_out
+            out = self.predictor(out)
         
         features0 = torch.nn.functional.normalize(out, p=2, dim=1)
 
         batch1 = batch1.to(0)
         repr = self.encoder(batch1.x, batch1.edge_index, batch1.edge_attr)
         out = global_mean_pool(repr, batch1.batch)
-        out = self.projector1(out)
-        if self.use_dangling_mask:
+        if self.proj_type == 0:
+            out = self.projector1(out)
             dangling_out = self.dangling_projector1(repr[batch1.dangling_mask])
+            out = out + dangling_out
+        elif self.proj_type == 1:
+            out = self.projector(out)
+            dangling_out = self.dangling_projector(repr[batch1.dangling_mask])
             out = out + dangling_out
 
         features1 = torch.nn.functional.normalize(out, p=2, dim=1)

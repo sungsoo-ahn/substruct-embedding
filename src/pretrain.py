@@ -8,7 +8,7 @@ import torch
 
 from frag_dataset import FragDataset
 from scheme import contrastive, predictive, sinkhorn
-from data.transform import fragment_data
+from data.transform import fragment
 from data.collate import double_collate
 import neptune.new as neptune
 
@@ -25,6 +25,7 @@ def train_step(batch0, batch1, model, optim):
 
     statistics["loss"] = loss.detach()
     statistics["acc"] = acc
+    statistics["logits_size"] = logits.size(0)
     
     optim.zero_grad()
     loss.backward()
@@ -32,7 +33,7 @@ def train_step(batch0, batch1, model, optim):
 
     return statistics
 
-def valid_step(batch0, batch1, model, optim):
+def valid_step(batch0, batch1, model):
     model.train()
 
     statistics = dict()
@@ -63,14 +64,12 @@ def main():
     parser.add_argument("--run_tag", type=str, default="")
     parser.add_argument("--use_neptune", action="store_true")
 
-    parser.add_argument("--drop_p", type=float, default=0.5)
-    parser.add_argument("--scheme", type=str, default="contrastive")
-    parser.add_argument("--transform_type", type=str, default="once")
     parser.add_argument("--use_valid", action="store_true")
     
-    parser.add_argument("--use_double_projector", action="store_true")
-    parser.add_argument("--use_dangling_mask", action="store_true")
-
+    parser.add_argument("--drop_p", type=float, default=0.5)
+    parser.add_argument("--min_num_nodes", type=int, default=0)
+    parser.add_argument("--proj_type", type=int, default=0)
+    
     args = parser.parse_args()
 
     torch.manual_seed(0)
@@ -78,22 +77,8 @@ def main():
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(0)
 
-    if args.scheme == "contrastive":
-        model = contrastive.Model(
-            use_double_projector=args.use_double_projector, 
-            use_dangling_mask=args.use_dangling_mask
-            )
-    elif args.scheme == "sinkhorn":
-        model = sinkhorn.Model(
-            use_double_projector=args.use_double_projector, 
-            use_dangling_mask=args.use_dangling_mask
-            )
-    elif args.scheme == "predictive":
-        model = predictive.Model(use_dangling_mask=args.use_dangling_mask)
-    
-    transform = lambda data: fragment_data(data, args.drop_p, args.transform_type)
-        
-    
+    model = contrastive.Model(proj_type=args.proj_type)
+    transform = lambda data: fragment(data, args.drop_p, args.min_num_nodes)    
     collate = double_collate
 
     print("Loading model...")
@@ -187,7 +172,7 @@ def main():
             cum_valid_statistics = defaultdict(float)
             for batch0, batch1 in (valid_loader):
                 with torch.no_grad():
-                    valid_statistics = valid_step(batch0, batch1, model, optim)
+                    valid_statistics = valid_step(batch0, batch1, model)
                 
                 for key, val in valid_statistics.items():
                     cum_valid_statistics[key] += val / len(valid_loader)
