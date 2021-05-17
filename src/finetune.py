@@ -91,7 +91,7 @@ def main():
 
     parser.add_argument("--run_tag", type=str, default="")
     parser.add_argument("--split_type", type=str, default="scaffold")
-    parser.add_argument("--num_runs", type=int, default=3)
+    parser.add_argument("--num_runs", type=int, default=5)
 
     args = parser.parse_args()
 

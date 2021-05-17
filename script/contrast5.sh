@@ -10,16 +10,26 @@ echo $MODEL_PATH
 echo $SUPERVISED_MODEL_PATH
 
 python pretrain.py \
---num_epochs 200 \
---resume_path $RESUME_PATH \
+--num_epochs 50 \
 --use_neptune \
---resume_path $RESUME_PATH \
 --run_tag $RUN_TAG
 
 python finetune.py \
 --datasets "bace" "bbbp" "sider" "clintox" "tox21" "toxcast" "hiv" "muv" \
 --model_path $MODEL_PATH \
---num_runs 5 \
+--num_runs 1 \
+--run_tag $RUN_TAG
+
+python pretrain.py \
+--num_epochs 100 \
+--resume_path $RESUME_PATH \
+--use_neptune \
+--run_tag $RUN_TAG
+
+python finetune.py \
+--datasets "bace" "bbbp" "sider" "clintox" "tox21" "toxcast" "hiv" "muv" \
+--model_path $MODEL_PATH \
+--num_runs 3 \
 --run_tag $RUN_TAG
 
 python supervised.py \
