@@ -13,7 +13,6 @@ python pretrain.py \
 --proj_type 1 \
 --num_epochs 50 \
 --use_neptune \
---resume_path $RESUME_PATH \
 --run_tag $RUN_TAG
 
 python finetune.py \

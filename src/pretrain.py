@@ -7,9 +7,9 @@ import random
 import torch
 
 from frag_dataset import FragDataset
-from scheme import contrastive, predictive, junction_contrastive
-from data.transform import fragment, junction_fragment
-from data.collate import double_collate, junction_collate, merge_collate
+from scheme import contrastive, predictive
+from data.transform import fragment
+from data.collate import double_collate, merge_collate
 import neptune.new as neptune
 
 from tqdm import tqdm
@@ -85,13 +85,7 @@ def main():
     elif args.scheme == "predictive":
         model = predictive.Model()   
         collate = merge_collate
-        transform = lambda data: fragment(data, args.drop_p, args.min_num_nodes, args.aug_x)    
-    
-    elif args.scheme == "junction_contrastive":
-        model = junction_contrastive.Model()
-        collate = junction_collate
-        transform = lambda data: junction_fragment(data, args.drop_p)
-         
+        transform = lambda data: fragment(data, args.drop_p, args.min_num_nodes, args.aug_x)         
     
     print("Loading model...")
     model = model.cuda()

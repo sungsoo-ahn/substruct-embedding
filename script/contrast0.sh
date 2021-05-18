@@ -2,7 +2,7 @@
 
 RUN_TAG="contrast0"
 MODEL_PATH="../resource/result/${RUN_TAG}/model.pt"
-RESUME_PATH="../resource/result/${RUN_TAG}/checkpoint.pt"
+RESUME_PATH="../resource/result/contrast0/checkpoint.pt"
 SUPERVISED_MODEL_PATH="../resource/result/${RUN_TAG}/model_supervised.pt"
 
 echo $RUN_TAG
@@ -13,7 +13,6 @@ python pretrain.py \
 --num_epochs 200 \
 --resume_path $RESUME_PATH \
 --use_neptune \
---resume_path $RESUME_PATH \
 --run_tag $RUN_TAG
 
 python finetune.py \
