@@ -85,7 +85,11 @@ def main():
     elif args.scheme == "predictive":
         model = predictive.Model()   
         collate = merge_collate
+<<<<<<< HEAD
         transform = lambda data: fragment(data, args.drop_p, args.min_num_nodes, args.aug_x)         
+=======
+        transform = lambda data: fragment(data, args.drop_p, args.min_num_nodes, args.aug_x)             
+>>>>>>> 3dfdbc0099200cb69bafb87306641925cdcf3b81
     
     print("Loading model...")
     model = model.cuda()

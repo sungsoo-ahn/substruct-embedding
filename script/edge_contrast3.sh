@@ -1,6 +1,6 @@
 #!/bin/bash
 
-RUN_TAG="edge_contrast0"
+RUN_TAG="edge_contrast3"
 MODEL_PATH="../resource/result/${RUN_TAG}/model.pt"
 RESUME_PATH="../resource/result/${RUN_TAG}/checkpoint.pt"
 SUPERVISED_MODEL_PATH="../resource/result/${RUN_TAG}/model_supervised.pt"
@@ -12,7 +12,8 @@ echo $SUPERVISED_MODEL_PATH
 python pretrain_multifrag.py \
 --scheme edge_contrastive \
 --num_epochs 100 \
---drop_p 0.3 \
+--aug_x \
+--resume_path $RESUME_PATH \
 --use_neptune \
 --run_tag $RUN_TAG
 
