@@ -7,7 +7,7 @@ import random
 import torch
 
 from frag_dataset import FragDataset
-from scheme import edge_contrastive, neighbor_contrastive
+from scheme import edge_contrastive, neighbor_contrastive, neighbor_predictive, edge_predictive
 from data.transform import multi_fragment
 from data.collate import multifrag_collate
 import neptune.new as neptune
@@ -78,18 +78,17 @@ def main():
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(0)
 
-    #if args.scheme == "contrastive":
-    #    model = contrastive.Model(proj_type=args.proj_type)
-    #elif args.scheme == "predictive":
-    #    model = predictive.Model()
-        
-    #transform = lambda data: fragment(data, args.drop_p, args.min_num_nodes, args.aug_x)    
     if args.scheme == "edge_contrastive":
         model = edge_contrastive.Model()
+    elif args.scheme == "edge_predictive":
+        model = edge_predictive.Model()    
     elif args.scheme == "neighbor_contrastive":
         model = neighbor_contrastive.Model()
+    elif args.scheme == "neighbor_predictive":
+        model = neighbor_predictive.Model()        
+    
         
-    transform = lambda data: multi_fragment(data, args.drop_p)
+    transform = lambda data: multi_fragment(data, args.drop_p, args.aug_x)
     
     
     print("Loading model...")

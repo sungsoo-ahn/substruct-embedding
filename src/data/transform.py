@@ -144,7 +144,7 @@ def fragment(data, drop_p, min_num_nodes, aug_x):
     
     return data0, data1
 
-def multi_fragment(data, mask_p):
+def multi_fragment(data, mask_p, aug_x):
     if data.frag_y.max() == 0:
         return None
       
@@ -234,5 +234,8 @@ def multi_fragment(data, mask_p):
     new_data.frag_edge_index = frag_edge_index
         
     new_data.dangling_edge_attr = drop_edge_attr
+    
+    if aug_x:
+        new_data.x = torch.cat([new_data.x, new_data.dangling_mask.unsqueeze(1).long()], dim=1)
 
     return new_data
