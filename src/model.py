@@ -23,7 +23,7 @@ class GINConv(MessagePassing):
 
     See https://arxiv.org/abs/1810.00826
     """
-    def __init__(self, emb_dim, aggr = "add"):
+    def __init__(self, emb_dim, aggr = "add", add_self_loop=True):
         super(GINConv, self).__init__()
         #multi-layer perceptron
         self.mlp = torch.nn.Sequential(torch.nn.Linear(emb_dim, 2*emb_dim), torch.nn.ReLU(), torch.nn.Linear(2*emb_dim, emb_dim))
@@ -33,16 +33,18 @@ class GINConv(MessagePassing):
         torch.nn.init.xavier_uniform_(self.edge_embedding1.weight.data)
         torch.nn.init.xavier_uniform_(self.edge_embedding2.weight.data)
         self.aggr = aggr
+        self.add_self_loop = add_self_loop
 
     def forward(self, x, edge_index, edge_attr):
         #add self loops in the edge space
-        edge_index = add_self_loops(edge_index, num_nodes = x.size(0))
+        if self.add_self_loop:
+            edge_index = add_self_loops(edge_index, num_nodes = x.size(0))
 
-        #add features corresponding to self-loop edges.
-        self_loop_attr = torch.zeros(x.size(0), 2)
-        self_loop_attr[:,0] = 4 #bond type for self-loop edge
-        self_loop_attr = self_loop_attr.to(edge_attr.device).to(edge_attr.dtype)
-        edge_attr = torch.cat((edge_attr, self_loop_attr), dim = 0)
+            #add features corresponding to self-loop edges.
+            self_loop_attr = torch.zeros(x.size(0), 2)
+            self_loop_attr[:,0] = 4 #bond type for self-loop edge
+            self_loop_attr = self_loop_attr.to(edge_attr.device).to(edge_attr.dtype)
+            edge_attr = torch.cat((edge_attr, self_loop_attr), dim = 0)
 
         edge_embeddings = self.edge_embedding1(edge_attr[:,0]) + self.edge_embedding2(edge_attr[:,1])
 
