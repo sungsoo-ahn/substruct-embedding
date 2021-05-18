@@ -1,5 +1,6 @@
 import torch
 from torch_geometric.data import Data
+from torch_sparse import coalesce
 
 def collate(data_list):
     data_list = [data for data in data_list if data is not None]
@@ -77,6 +78,8 @@ def multifrag_collate(data_list):
                 item = item + cumsum_node
             elif key == "dangling_edge_index":
                 item = item + cumsum_dangling_node
+            elif key == "frag_edge_index":
+                item = item + cumsum_frag
                 
             batch[key].append(item)
 
@@ -88,7 +91,7 @@ def multifrag_collate(data_list):
         batch.batch_num_nodes.append(torch.tensor([num_nodes]))
 
     for key in keys:
-        if key == "dangling_edge_index":
+        if key in ["dangling_edge_index", "frag_edge_index"]:
             batch[key] = torch.cat(batch[key], dim=1)
         else:
             batch[key] = torch.cat(batch[key], dim=data_list[0].cat_dim(key, batch[key][0]))
@@ -97,7 +100,7 @@ def multifrag_collate(data_list):
 
     batch.batch = torch.cat(batch.batch, dim=-1)
     batch.frag_batch = torch.cat(batch.frag_batch, dim=-1)           
-            
+    
     return batch.contiguous()
 
 def double_collate(data_list):
@@ -161,9 +164,57 @@ def merge_collate(data_list):
     pos_edge_index, pos_edge_attr = coalesce(pos_edge_index, edge_attr, num_nodes, num_nodes)
     neg_edge_index, neg_edge_attr = coalesce(neg_edge_index, edge_attr, num_nodes, num_nodes)
 
-    pos_batch = Data(pos_x, pos_edge_index, pos_edge_attr)
-    pos_batch.batch = pos_batch
-    neg_batch = Data(neg_x, neg_edge_index, neg_edge_attr)
-    neg_batch.batch = neg_batch
+    batch0 = Data(pos_x, pos_edge_index, pos_edge_attr)
+    batch0.batch = pos_batch
+    batch1 = Data(neg_x, neg_edge_index, neg_edge_attr)
+    batch1.batch = neg_batch
 
-    return pos_batch, neg_batch
+    return batch0, batch1
+
+def collate(data_list):    
+    data_list = [data for data in data_list if data is not None]
+    keys = [set(data.keys) for data in data_list]
+    keys = list(set.union(*keys))
+    assert 'batch' not in keys
+
+    batch = Data()
+
+    for key in keys:
+        batch[key] = []
+    batch.batch = []
+    
+    cumsum_node = 0
+    cumsum_edge = 0
+
+    for i, data in enumerate(data_list):
+        num_nodes = data.num_nodes
+        batch.batch.append(torch.full((num_nodes, ), i, dtype=torch.long))   
+            
+        for key in data.keys:
+            item = data[key]
+            if key == 'edge_index':
+                item = item + cumsum_node
+            batch[key].append(item)
+
+        cumsum_node += num_nodes
+        cumsum_edge += data.edge_index.shape[1]
+        
+    for key in keys:
+        batch[key] = torch.cat(
+            batch[key], dim=data_list[0].cat_dim(key, batch[key][0]))
+    
+    batch.batch = torch.cat(batch.batch, dim=-1)
+    if "node2junctionnode" in data_list[0].keys:    
+        batch.junction_batch = []
+        offset = 0
+        for i, data in enumerate(data_list):
+            batch.junction_batch.append(offset + data.node2junctionnode)
+            offset += data.node2junctionnode.max().item() + 1
+            
+        batch.junction_batch = torch.cat(batch.junction_batch, dim=-1)
+        
+    return batch.contiguous()
+
+def junction_collate(data_list):
+    frag_data_list, junction_data_list = map(list, zip(*data_list))    
+    return collate(frag_data_list), collate(junction_data_list)

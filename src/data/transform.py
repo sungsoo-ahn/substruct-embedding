@@ -171,6 +171,7 @@ def multi_fragment(data, mask_p):
     num_drops = max(1, int(num_uniq_inter_edges * mask_p))
     drop_idxs = random.sample(range(num_uniq_inter_edges), num_drops)
     drop_edge_index = uniq_inter_edge_index[:, drop_idxs]   
+    drop_edge_attr = uniq_inter_edge_attr[drop_idxs, :]
     
     # get keep edge_index edge_attr
     keep_idxs = [idx for idx in range(num_uniq_inter_edges) if idx not in drop_idxs]
@@ -193,6 +194,7 @@ def multi_fragment(data, mask_p):
     nx_graph.add_edges_from(uniq_intra_edge_index.t().tolist())
     nx_graph.add_edges_from(uniq_inter_edge_index.t().tolist())
     frag_nodes_list = list(map(list, nx.connected_components(nx_graph)))
+        
     frag_num_nodes = torch.tensor([len(frag_nodes) for frag_nodes in frag_nodes_list])
         
     # create mapping to sort fragments
@@ -201,11 +203,16 @@ def multi_fragment(data, mask_p):
         )
     node2newnode = torch.empty_like(newnode2node)
     node2newnode[newnode2node] = torch.arange(num_nodes)
-                    
+    
+    node2frag = torch.zeros(num_nodes, dtype=torch.long)
+    for idx, frag_nodes in enumerate(frag_nodes_list):
+        node2frag[frag_nodes] = idx
+    
     # relabel 
     new_x = new_x[newnode2node]
     new_edge_index = node2newnode[new_edge_index]
     new_edge_index, new_edge_attr = coalesce(new_edge_index, new_edge_attr, num_nodes, num_nodes)
+    frag_edge_index = node2frag[drop_edge_index]
     drop_edge_index = node2newnode[drop_edge_index]
     
     # create dangling_mask
@@ -218,12 +225,14 @@ def multi_fragment(data, mask_p):
     node2dangling_node = torch.full((num_nodes, ), -1, dtype=torch.long)
     node2dangling_node[dangling_mask] = torch.arange(num_dangling_nodes)
     dangling_edge_index = node2dangling_node[drop_edge_index]
-    #dangling_adj = to_dense_adj(dangling_drop_edge_index)
     
     # create new data
     new_data = Data(x=new_x, edge_index=new_edge_index, edge_attr=new_edge_attr)
     new_data.frag_num_nodes = frag_num_nodes
     new_data.dangling_mask = dangling_mask
     new_data.dangling_edge_index = dangling_edge_index
+    new_data.frag_edge_index = frag_edge_index
+        
+    new_data.dangling_edge_attr = drop_edge_attr
 
     return new_data

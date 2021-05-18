@@ -28,7 +28,9 @@ class Model(torch.nn.Module):
             torch.nn.Linear(self.emb_dim, 1),
         )
 
-    def compute_logits_and_labels(self, batch0, batch1):
+
+    def compute_logits_and_labels(self, batchs):
+        batch0, batch1 = batchs
         batch0 = batch0.to(0)
         out = self.encoder(batch0.x, batch0.edge_index, batch0.edge_attr)
         out = global_mean_pool(out, batch0.batch)
@@ -45,6 +47,7 @@ class Model(torch.nn.Module):
         ).to(0)
 
         return logits, labels
+    
 
     def compute_accuracy(self, pred, target):
         acc = float(torch.sum(torch.eq(pred > 0, target > 0.5)).long()) / pred.size(0)

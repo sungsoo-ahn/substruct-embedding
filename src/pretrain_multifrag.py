@@ -7,7 +7,7 @@ import random
 import torch
 
 from frag_dataset import FragDataset
-from scheme import multifrag_contrastive
+from scheme import edge_contrastive, neighbor_contrastive
 from data.transform import multi_fragment
 from data.collate import multifrag_collate
 import neptune.new as neptune
@@ -25,7 +25,7 @@ def train_step(batchs, model, optim):
 
     statistics["loss"] = loss.detach()
     statistics["acc"] = acc
-    
+
     optim.zero_grad()
     loss.backward()
     optim.step()
@@ -84,7 +84,11 @@ def main():
     #    model = predictive.Model()
         
     #transform = lambda data: fragment(data, args.drop_p, args.min_num_nodes, args.aug_x)    
-    model = multifrag_contrastive.Model()
+    if args.scheme == "edge_contrastive":
+        model = edge_contrastive.Model()
+    elif args.scheme == "neighbor_contrastive":
+        model = neighbor_contrastive.Model()
+        
     transform = lambda data: multi_fragment(data, args.drop_p)
     
     

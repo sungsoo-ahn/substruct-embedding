@@ -7,9 +7,9 @@ import random
 import torch
 
 from frag_dataset import FragDataset
-from scheme import contrastive
-from data.transform import fragment
-from data.collate import double_collate
+from scheme import contrastive, predictive, junction_contrastive
+from data.transform import fragment, junction_fragment
+from data.collate import double_collate, junction_collate, merge_collate
 import neptune.new as neptune
 
 from tqdm import tqdm
@@ -25,9 +25,9 @@ def train_step(batchs, model, optim):
 
     statistics["loss"] = loss.detach()
     statistics["acc"] = acc
-    
     optim.zero_grad()
     loss.backward()
+        
     optim.step()
 
     return statistics
@@ -78,11 +78,21 @@ def main():
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(0)
 
-    model = contrastive.Model(proj_type=args.proj_type)
-        
-    transform = lambda data: fragment(data, args.drop_p, args.min_num_nodes, args.aug_x)    
-    collate = double_collate
-
+    if args.scheme == "contrastive":
+        model = contrastive.Model(proj_type=args.proj_type)
+        collate = double_collate
+        transform = lambda data: fragment(data, args.drop_p, args.min_num_nodes, args.aug_x)    
+    elif args.scheme == "predictive":
+        model = predictive.Model()   
+        collate = merge_collate
+        transform = lambda data: fragment(data, args.drop_p, args.min_num_nodes, args.aug_x)    
+    
+    elif args.scheme == "junction_contrastive":
+        model = junction_contrastive.Model()
+        collate = junction_collate
+        transform = lambda data: junction_fragment(data, args.drop_p)
+         
+    
     print("Loading model...")
     model = model.cuda()
     optim = torch.optim.Adam(
@@ -153,7 +163,7 @@ def main():
         if args.use_neptune:
             run[f"epoch"].log(epoch)
 
-        for batchs in (loader):
+        for batchs in tqdm(loader):
             step += 1
             train_statistics = train_step(batchs, model, optim)
             for key, val in train_statistics.items():
