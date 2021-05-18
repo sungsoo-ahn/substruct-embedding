@@ -7,15 +7,15 @@ import random
 import torch
 
 from frag_dataset import FragDataset
-from scheme import contrastive
+from scheme import contrastive, predictive
 from data.transform import fragment
-from data.collate import double_collate
+from data.collate import double_collate, merge_collate
 import neptune.new as neptune
 
 from tqdm import tqdm
 from time import asctime
 
-def train_step(batchs, model, optim):
+def train_step(batchs, model, optim, clip_norm):
     model.train()
 
     statistics = dict()
@@ -28,6 +28,9 @@ def train_step(batchs, model, optim):
     
     optim.zero_grad()
     loss.backward()
+    if clip_norm > 0.0:
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+        
     optim.step()
 
     return statistics
@@ -70,6 +73,7 @@ def main():
     parser.add_argument("--min_num_nodes", type=int, default=0)
     parser.add_argument("--proj_type", type=int, default=0)
     parser.add_argument("--aug_x", action="store_true")
+    parser.add_argument("--clip_norm", type=float, default=-1.0)
     
     args = parser.parse_args()
 
@@ -78,11 +82,15 @@ def main():
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(0)
 
-    model = contrastive.Model(proj_type=args.proj_type)
-        
+    if args.scheme == "contrastive":
+        model = contrastive.Model(proj_type=args.proj_type)
+        collate = double_collate
+    elif args.scheme == "predictive":
+        model = predictive.Model()   
+        collate = merge_collate
+         
     transform = lambda data: fragment(data, args.drop_p, args.min_num_nodes, args.aug_x)    
-    collate = double_collate
-
+    
     print("Loading model...")
     model = model.cuda()
     optim = torch.optim.Adam(
@@ -155,7 +163,7 @@ def main():
 
         for batchs in (loader):
             step += 1
-            train_statistics = train_step(batchs, model, optim)
+            train_statistics = train_step(batchs, model, optim, args.clip_norm)
             for key, val in train_statistics.items():
                 cum_train_statistics[key] += val / args.log_freq
 

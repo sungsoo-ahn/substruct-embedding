@@ -1,5 +1,6 @@
 import torch
 from torch_geometric.data import Data
+from torch_sparse import coalesce
 
 def collate(data_list):
     data_list = [data for data in data_list if data is not None]
@@ -161,9 +162,9 @@ def merge_collate(data_list):
     pos_edge_index, pos_edge_attr = coalesce(pos_edge_index, edge_attr, num_nodes, num_nodes)
     neg_edge_index, neg_edge_attr = coalesce(neg_edge_index, edge_attr, num_nodes, num_nodes)
 
-    pos_batch = Data(pos_x, pos_edge_index, pos_edge_attr)
-    pos_batch.batch = pos_batch
-    neg_batch = Data(neg_x, neg_edge_index, neg_edge_attr)
-    neg_batch.batch = neg_batch
+    batch0 = Data(pos_x, pos_edge_index, pos_edge_attr)
+    batch0.batch = pos_batch
+    batch1 = Data(neg_x, neg_edge_index, neg_edge_attr)
+    batch1.batch = neg_batch
 
-    return pos_batch, neg_batch
+    return batch0, batch1
