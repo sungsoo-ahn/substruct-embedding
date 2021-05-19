@@ -50,8 +50,8 @@ class Model(torch.nn.Module):
     def compute_logits_and_labels(self, batch):        
         batch = batch.to(0)
                 
-        u_index = torch.cat([batch.frag_edge_index[0], batch.frag_edge_index[1]], dim=0)
-        v_index = torch.cat([batch.frag_edge_index[1], batch.frag_edge_index[0]], dim=0)
+        u_index = torch.cat([batch.dangling_edge_index[0], batch.dangling_edge_index[1]], dim=0)
+        v_index = torch.cat([batch.dangling_edge_index[1], batch.dangling_edge_index[0]], dim=0)
         uv_edge_attr = torch.cat([batch.dangling_edge_attr, batch.dangling_edge_attr], dim=0)
         
         out = self.encoder(batch.x, batch.edge_index, batch.edge_attr)
