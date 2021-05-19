@@ -178,21 +178,34 @@ def multi_fragment(data, mask_p, aug_x):
     uniq_inter_edge_index = uniq_inter_edge_index[:, keep_idxs]
     uniq_inter_edge_attr = uniq_inter_edge_attr[keep_idxs, :]
     
+    fake_x = torch.zeros(num_drops*2, data.x.size(1), dtype=torch.long)
+    uniq_fake_row = torch.cat([drop_edge_index[0], drop_edge_index[1]], dim=0)
+    uniq_fake_col = torch.arange(num_nodes, num_nodes+num_drops*2)
+    uniq_fake_edge_index = torch.stack([uniq_fake_row, uniq_fake_col], dim=0)
+    missing_edge_index = torch.stack([torch.arange(num_nodes, num_nodes+num_drops), torch.arange(num_nodes+num_drops, num_nodes+2*num_drops)], dim=0)
+    missing_edge_attr = torch.zeros(num_drops*2, 2, dtype=torch.long)
+    missing_edge_attr[:, 0] = 5
+    
     # create new data with dropped edges
     new_x = data.x.clone()
+    new_x = torch.cat([new_x, fake_x], dim=0)
     
-    new_uniq_edge_index0 = torch.cat([uniq_intra_edge_index, uniq_inter_edge_index], dim=1)
+    new_uniq_edge_index0 = torch.cat(
+        [uniq_intra_edge_index, uniq_inter_edge_index, uniq_fake_edge_index], dim=1
+        )
     new_uniq_edge_index1 = torch.roll(new_uniq_edge_index0, shifts=1, dims=0)
     new_edge_index = torch.cat([new_uniq_edge_index0, new_uniq_edge_index1], dim=1)
     
-    new_uniq_edge_attr = torch.cat([uniq_intra_edge_attr, uniq_inter_edge_attr])
+    new_uniq_edge_attr = torch.cat([uniq_intra_edge_attr, uniq_inter_edge_attr, missing_edge_attr])
     new_edge_attr = torch.cat([new_uniq_edge_attr, new_uniq_edge_attr], dim=0)
     
     # extract connected fragments
+    new_num_nodes = num_nodes+num_drops*2
     nx_graph = nx.Graph()
-    nx_graph.add_nodes_from(range(num_nodes))
+    nx_graph.add_nodes_from(range(new_num_nodes))
     nx_graph.add_edges_from(uniq_intra_edge_index.t().tolist())
     nx_graph.add_edges_from(uniq_inter_edge_index.t().tolist())
+    nx_graph.add_edges_from(uniq_fake_edge_index.t().tolist())
     frag_nodes_list = list(map(list, nx.connected_components(nx_graph)))
         
     frag_num_nodes = torch.tensor([len(frag_nodes) for frag_nodes in frag_nodes_list])
@@ -202,40 +215,34 @@ def multi_fragment(data, mask_p, aug_x):
         [node for frag_nodes in frag_nodes_list for node in frag_nodes], dtype=torch.long
         )
     node2newnode = torch.empty_like(newnode2node)
-    node2newnode[newnode2node] = torch.arange(num_nodes)
-    
-    node2frag = torch.zeros(num_nodes, dtype=torch.long)
-    for idx, frag_nodes in enumerate(frag_nodes_list):
-        node2frag[frag_nodes] = idx
+    node2newnode[newnode2node] = torch.arange(new_num_nodes)
     
     # relabel 
     new_x = new_x[newnode2node]
     new_edge_index = node2newnode[new_edge_index]
-    new_edge_index, new_edge_attr = coalesce(new_edge_index, new_edge_attr, num_nodes, num_nodes)
-    frag_edge_index = node2frag[drop_edge_index]
     drop_edge_index = node2newnode[drop_edge_index]
+    missing_edge_index = node2newnode[missing_edge_index]
+    
+    new_edge_index, new_edge_attr = coalesce(
+        new_edge_index, new_edge_attr, new_num_nodes, new_num_nodes
+        )
     
     # create dangling_mask
-    dangling_mask = torch.zeros(num_nodes, dtype=torch.bool)
-    dangling_mask[drop_edge_index[0]] = True
-    dangling_mask[drop_edge_index[1]] = True
+    dangling_mask = torch.zeros(new_num_nodes, dtype=torch.bool)
+    dangling_mask[missing_edge_index[0]] = True
+    dangling_mask[missing_edge_index[1]] = True
     
     # create dangling_adj
     num_dangling_nodes = dangling_mask.long().sum().item()
-    node2dangling_node = torch.full((num_nodes, ), -1, dtype=torch.long)
+    node2dangling_node = torch.full((new_num_nodes, ), -1, dtype=torch.long)
     node2dangling_node[dangling_mask] = torch.arange(num_dangling_nodes)
-    dangling_edge_index = node2dangling_node[drop_edge_index]
+    dangling_edge_index = node2dangling_node[missing_edge_index]
     
     # create new data
     new_data = Data(x=new_x, edge_index=new_edge_index, edge_attr=new_edge_attr)
     new_data.frag_num_nodes = frag_num_nodes
     new_data.dangling_mask = dangling_mask
     new_data.dangling_edge_index = dangling_edge_index
-    new_data.frag_edge_index = frag_edge_index
+    new_data.drop_edge_attr = drop_edge_attr
         
-    new_data.dangling_edge_attr = drop_edge_attr
-    
-    if aug_x:
-        new_data.x = torch.cat([new_data.x, new_data.dangling_mask.unsqueeze(1).long()], dim=1)
-
     return new_data
