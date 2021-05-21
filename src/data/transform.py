@@ -135,7 +135,6 @@ def fragment(data, drop_p, min_num_nodes, aug_x):
     dangling_mask[uu] = True
     dangling_mask[vv] = True
     data0.dangling_mask = dangling_mask[keepnode_mask0]
-    
     data1.dangling_mask = dangling_mask[keepnode_mask1]
     
     if aug_x:
@@ -144,7 +143,7 @@ def fragment(data, drop_p, min_num_nodes, aug_x):
     
     return data0, data1
 
-def multi_fragment(data, mask_p, aug_x):
+def multi_fragment(data, mask_p, aug_x, x_mask_rate):
     if data.frag_y.max() == 0:
         return None
       
@@ -244,5 +243,12 @@ def multi_fragment(data, mask_p, aug_x):
     new_data.dangling_mask = dangling_mask
     new_data.dangling_edge_index = dangling_edge_index
     new_data.drop_edge_attr = drop_edge_attr
+    
+    if x_mask_rate > 0.0:
+        x_mask = torch.zeros(data.x.size(0), dtype=torch.long)
+        num_masks = max(1, int(x_mask_rate * data.x.size(0)))
+        mask_nodes = random.sample(range(data.x.size(0)), num_masks)
+        x_mask[mask_nodes] = True
+        new_data.x[x_mask] = 0
         
     return new_data

@@ -96,7 +96,7 @@ def main():
     optim = torch.optim.Adam(
         [param for param in model.parameters() if param.requires_grad], lr=args.lr
     )
-    
+            
     if args.resume_path != "":
         print("Loading checkpoint...")
         checkpoint = torch.load(args.resume_path)

@@ -65,12 +65,14 @@ def main():
 
     parser.add_argument("--use_valid", action="store_true")
     
-    parser.add_argument("--scheme", type=str, default="contrastive")
+    parser.add_argument("--scheme", type=str, default="edge_predictive")
     parser.add_argument("--drop_p", type=float, default=0.5)
     parser.add_argument("--min_num_nodes", type=int, default=0)
     parser.add_argument("--proj_type", type=int, default=0)
     parser.add_argument("--aug_x", action="store_true")
+    parser.add_argument("--x_mask_rate", type=float, default=0.0)
     
+    parser.add_argument("--input_model_path", type=str, default="")
     args = parser.parse_args()
 
     torch.manual_seed(0)
@@ -80,19 +82,22 @@ def main():
 
 
     if args.scheme == "edge_predictive":
-        model = edge_predictive.Model()    
+        model = edge_predictive.Model()
     elif args.scheme == "edge_predictive_rotate":
         model = edge_predictive_rotate.Model()
     
-        
-    transform = lambda data: multi_fragment(data, args.drop_p, args.aug_x)
-    
+    transform = lambda data: multi_fragment(data, args.drop_p, args.aug_x, args.x_mask_rate)
     
     print("Loading model...")
     model = model.cuda()
     optim = torch.optim.Adam(
         [param for param in model.parameters() if param.requires_grad], lr=args.lr
     )
+    
+    if args.input_model_path != "":
+        state_dict = torch.load(args.input_model_path)
+        model.encoder.load_state_dict(state_dict)
+
     
     if args.resume_path != "":
         print("Loading checkpoint...")
