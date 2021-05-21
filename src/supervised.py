@@ -130,10 +130,14 @@ def main():
         os.makedirs(f"../resource/result/{run_tag}", exist_ok=True)
 
     for epoch in range(1, args.epochs+1):
-        #print("====epoch " + str(epoch))
+        print("====epoch " + str(epoch))
 
         loss = train(args, model, device, loader, optimizer)
         run["train/loss"].log(loss)
+        
+        if args.use_neptune:
+            torch.save(model.gnn.state_dict(), args.output_model_path.replace(".pt",  f"_{epoch:02d}.pt"))
+
 
     if args.use_neptune:
         torch.save(model.gnn.state_dict(), args.output_model_path)
