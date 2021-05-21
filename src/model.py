@@ -230,8 +230,8 @@ class GNN(torch.nn.Module):
         if self.num_layer < 2:
             raise ValueError("Number of GNN layers must be greater than 1.")
         
-        if reduce_num_atom_type:
-            num_atom_type -= 1
+        #if reduce_num_atom_type:
+        #    num_atom_type -= 1
             
         self.x_embedding1 = torch.nn.Embedding(num_atom_type, emb_dim)
         self.x_embedding2 = torch.nn.Embedding(num_chirality_tag, emb_dim)
