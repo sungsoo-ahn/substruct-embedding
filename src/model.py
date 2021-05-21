@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from torch_scatter import scatter_add
 from torch_geometric.nn.inits import glorot, zeros
 
-num_atom_type = 121 #119 + 1 + 1 #including the extra mask tokens
+num_atom_type = 120 #119 + 1 + 1 #including the extra mask tokens
 num_chirality_tag = 3
 
 num_bond_type = 6 #including aromatic and self-loop edge, and extra masked tokens
@@ -230,8 +230,8 @@ class GNN(torch.nn.Module):
         if self.num_layer < 2:
             raise ValueError("Number of GNN layers must be greater than 1.")
         
-        if reduce_num_atom_type:
-            num_atom_type -= 1
+        #if reduce_num_atom_type:
+        #    num_atom_type -= 1
             
         self.x_embedding1 = torch.nn.Embedding(num_atom_type, emb_dim)
         self.x_embedding2 = torch.nn.Embedding(num_chirality_tag, emb_dim)
