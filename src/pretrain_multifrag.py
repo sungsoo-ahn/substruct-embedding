@@ -65,7 +65,7 @@ def main():
 
     parser.add_argument("--use_valid", action="store_true")
     
-    parser.add_argument("--scheme", type=str, default="edge_predictive")
+    parser.add_argument("--scheme", type=str, default="predictive")
     parser.add_argument("--drop_p", type=float, default=0.5)
     parser.add_argument("--min_num_nodes", type=int, default=0)
     parser.add_argument("--proj_type", type=int, default=0)
@@ -81,9 +81,9 @@ def main():
         torch.cuda.manual_seed_all(0)
 
 
-    if args.scheme == "edge_predictive":
+    if args.scheme == "predictive":
         model = edge_predictive.Model()
-    elif args.scheme == "edge_contrastive":
+    elif args.scheme == "contrastive":
         model = edge_contrastive.Model()
     
     transform = lambda data: multi_fragment(data, args.drop_p, args.aug_x, args.x_mask_rate)
