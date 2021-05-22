@@ -15,13 +15,16 @@ from model import GNN_graphpred
 from data.dataset import MoleculeDataset
 from data.splitter import scaffold_split, random_split
 
-
+import old_model
 
 def train_classification(model, optimizer, loader, device):
     criterion = nn.BCEWithLogitsLoss(reduction="none")
     model.train()
 
     for batch in loader:
+        if batch.x.size(0) == 1:
+            continue
+
         batch = batch.to(device)
         pred = model(batch.x, batch.edge_index, batch.edge_attr, batch.batch)
         y = batch.y.view(pred.shape).to(torch.float64)
@@ -75,6 +78,9 @@ def train_regression(model, optimizer, loader, device):
     model.train()
 
     for batch in loader:
+        if batch.x.size(0) == 1:
+            continue
+        
         batch = batch.to(device)
         pred = model(batch.x, batch.edge_index, batch.edge_attr, batch.batch)
         y = batch.y.view(pred.shape).to(torch.float64)
@@ -204,7 +210,7 @@ def main():
                 train_dataset, 
                 batch_size=args.batch_size, 
                 shuffle=True, 
-                num_workers=args.num_workers
+                num_workers=args.num_workers,
             )
             vali_loader = DataLoader(
                 valid_dataset, 
@@ -234,25 +240,23 @@ def main():
                 "lipophilicity": 1, 
             }.get(dataset_name)
 
-            model = GNN_graphpred(
-                num_layer=args.num_layers, 
-                emb_dim=args.emb_dim,
-                num_tasks=num_tasks,
-                drop_ratio=args.drop_rate,
-            )
-            
             if not args.model_path == "":
                 try:
+                    model = GNN_graphpred(
+                        num_layer=args.num_layers, 
+                        emb_dim=args.emb_dim,
+                        num_tasks=num_tasks,
+                        drop_ratio=args.drop_rate,
+                    )
                     model.gnn.load_state_dict(torch.load(args.model_path))
                 except:
-                    state_dict = torch.load(args.model_path)
-                    new_state_dict = dict()
-                    for key in state_dict:
-                        if "encoder." in key:
-                            new_state_dict[key.replace("encoder.", "")] = state_dict[key]
-
-                    model.gnn.load_state_dict(new_state_dict)
-
+                    model = old_model.GNN_graphpred(
+                        num_layer=args.num_layers, 
+                        emb_dim=args.emb_dim,
+                        num_tasks=num_tasks,
+                        drop_ratio=args.drop_rate,
+                    )
+            
             model.to(device)
 
             model_param_group = []
