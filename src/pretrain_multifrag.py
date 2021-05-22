@@ -7,7 +7,7 @@ import random
 import torch
 
 from frag_dataset import FragDataset
-from scheme import edge_predictive, edge_predictive_rotate
+from scheme import edge_predictive, edge_contrastive
 from data.transform import multi_fragment
 from data.collate import multifrag_collate
 import neptune.new as neptune
@@ -83,8 +83,8 @@ def main():
 
     if args.scheme == "edge_predictive":
         model = edge_predictive.Model()
-    elif args.scheme == "edge_predictive_rotate":
-        model = edge_predictive_rotate.Model()
+    elif args.scheme == "edge_contrastive":
+        model = edge_contrastive.Model()
     
     transform = lambda data: multi_fragment(data, args.drop_p, args.aug_x, args.x_mask_rate)
     
