@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from torch_scatter import scatter_add
 from torch_geometric.nn.inits import glorot, zeros
 
-num_atom_type = 120 #119 + 1 + 1 #including the extra mask tokens
+num_atom_type = 121 #119 + 1 + 1 #including the extra mask tokens
 num_chirality_tag = 3
 
 num_bond_type = 6 #including aromatic and self-loop edge, and extra masked tokens
@@ -235,11 +235,11 @@ class GNN(torch.nn.Module):
             
         self.x_embedding1 = torch.nn.Embedding(num_atom_type, emb_dim)
         self.x_embedding2 = torch.nn.Embedding(num_chirality_tag, emb_dim)
-        #self.x_embedding3 = torch.nn.Embedding(2, emb_dim)
+        self.x_embedding3 = torch.nn.Embedding(2, emb_dim)
 
         torch.nn.init.xavier_uniform_(self.x_embedding1.weight.data)
         torch.nn.init.xavier_uniform_(self.x_embedding2.weight.data)
-        #torch.nn.init.xavier_uniform_(self.x_embedding3.weight.data)
+        torch.nn.init.xavier_uniform_(self.x_embedding3.weight.data)
 
         ###List of MLPs
         self.gnns = torch.nn.ModuleList()

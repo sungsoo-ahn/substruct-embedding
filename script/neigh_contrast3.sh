@@ -13,7 +13,6 @@ python pretrain_multifrag.py \
 --scheme neighbor_contrastive \
 --num_epochs 100 \
 --aug_x \
---resume_path $RESUME_PATH \
 --use_neptune \
 --run_tag $RUN_TAG
 

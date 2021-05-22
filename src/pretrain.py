@@ -9,7 +9,7 @@ import torch
 from frag_dataset import FragDataset
 from scheme import contrastive, predictive
 from data.transform import fragment
-from data.collate import double_collate, junction_collate, merge_collate
+from data.collate import double_collate, merge_collate
 import neptune.new as neptune
 
 from tqdm import tqdm
@@ -49,7 +49,7 @@ def valid_step(batchs, model):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", type=str, default="zinc_brics")
-    parser.add_argument("--num_epochs", type=int, default=20)
+    parser.add_argument("--num_epochs", type=int, default=100)
     parser.add_argument("--log_freq", type=float, default=100)
     parser.add_argument("--resume_path", type=str, default="")
 
@@ -85,7 +85,11 @@ def main():
     elif args.scheme == "predictive":
         model = predictive.Model()   
         collate = merge_collate
+<<<<<<< HEAD
+        transform = lambda data: fragment(data, args.drop_p, args.min_num_nodes, args.aug_x)         
+=======
         transform = lambda data: fragment(data, args.drop_p, args.min_num_nodes, args.aug_x)             
+>>>>>>> 3dfdbc0099200cb69bafb87306641925cdcf3b81
     
     print("Loading model...")
     model = model.cuda()
