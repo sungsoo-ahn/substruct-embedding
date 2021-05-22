@@ -553,6 +553,43 @@ class MoleculeDataset(InMemoryDataset):
                 data_list.append(data)
                 data_smiles_list.append(smiles_list[i])
 
+        elif self.dataset == 'qm7':
+            smiles_list, rdkit_mol_objs, labels = \
+                _load_qm7_dataset(self.raw_paths[0])
+            for i in range(len(smiles_list)):
+                print(i)
+                rdkit_mol = rdkit_mol_objs[i]
+                # # convert aromatic bonds to double bonds
+                # Chem.SanitizeMol(rdkit_mol,
+                #                  sanitizeOps=Chem.SanitizeFlags.SANITIZE_KEKULIZE)
+                data = mol_to_graph_data_obj_simple(rdkit_mol)
+                # manually add mol id
+                data.id = torch.tensor(
+                    [i])  # id here is the index of the mol in
+                # the dataset
+                data.y = torch.tensor([labels[i]])
+                data_list.append(data)
+                data_smiles_list.append(smiles_list[i])
+
+
+        elif self.dataset == 'qm8':
+            smiles_list, rdkit_mol_objs, labels = \
+                _load_qm8_dataset(self.raw_paths[0])
+            for i in range(len(smiles_list)):
+                print(i)
+                rdkit_mol = rdkit_mol_objs[i]
+                # # convert aromatic bonds to double bonds
+                # Chem.SanitizeMol(rdkit_mol,
+                #                  sanitizeOps=Chem.SanitizeFlags.SANITIZE_KEKULIZE)
+                data = mol_to_graph_data_obj_simple(rdkit_mol)
+                # manually add mol id
+                data.id = torch.tensor(
+                    [i])  # id here is the index of the mol in
+                # the dataset
+                data.y = torch.tensor([labels[i]])
+                data_list.append(data)
+                data_smiles_list.append(smiles_list[i])
+
         elif self.dataset == 'freesolv':
             smiles_list, rdkit_mol_objs, labels = \
                 _load_freesolv_dataset(self.raw_paths[0])
@@ -1072,6 +1109,40 @@ def _load_esol_dataset(input_path):
     assert len(smiles_list) == len(rdkit_mol_objs_list)
     assert len(smiles_list) == len(labels)
     return smiles_list, rdkit_mol_objs_list, labels.values
+
+def _load_qm7_dataset(input_path):
+    """
+
+    :param input_path:
+    :return: list of smiles, list of rdkit mol obj, np.array containing the
+    labels (regression task)
+    """
+    # NB: some examples have multiple species
+    input_df = pd.read_csv(input_path, sep=',')
+    smiles_list = input_df['smiles']
+    rdkit_mol_objs_list = [AllChem.MolFromSmiles(s) for s in smiles_list]
+    labels = input_df['u0_atom']
+    assert len(smiles_list) == len(rdkit_mol_objs_list)
+    assert len(smiles_list) == len(labels)
+    return smiles_list, rdkit_mol_objs_list, labels.values
+
+def _load_qm8_dataset(input_path):
+    """
+
+    :param input_path:
+    :return: list of smiles, list of rdkit mol obj, np.array containing the
+    labels (regression task)
+    """
+    # NB: some examples have multiple species
+    input_df = pd.read_csv(input_path, sep=',')
+    smiles_list = input_df['smiles']
+    rdkit_mol_objs_list = [AllChem.MolFromSmiles(s) for s in smiles_list]
+    tasks = 'E1-CC2,E2-CC2,f1-CC2,f2-CC2,E1-PBE0,E2-PBE0,f1-PBE0,f2-PBE0,E1-CAM,E2-CAM,f1-CAM,f2-CAM'.split(",")
+    labels = input_df[tasks]
+    assert len(smiles_list) == len(rdkit_mol_objs_list)
+    assert len(smiles_list) == len(labels)
+    return smiles_list, rdkit_mol_objs_list, labels.values
+
 # input_path = 'dataset/esol/raw/delaney-processed.csv'
 # smiles_list, rdkit_mol_objs_list, labels = _load_esol_dataset(input_path)
 

@@ -15,63 +15,10 @@ from model import GNN_graphpred
 from data.dataset import MoleculeDataset
 from data.splitter import scaffold_split, random_split
 
+criterion = nn.MSELoss(reduction="none")
 
 
-def train_classification(model, optimizer, loader, device):
-    criterion = nn.BCEWithLogitsLoss(reduction="none")
-    model.train()
-
-    for batch in loader:
-        batch = batch.to(device)
-        pred = model(batch.x, batch.edge_index, batch.edge_attr, batch.batch)
-        y = batch.y.view(pred.shape).to(torch.float64)
-        
-        # Whether y is non-null or not.
-        is_valid = y ** 2 > 1e-6
-        # Loss matrix
-        loss_mat = criterion(pred.double(), (y + 1) / 2)
-        # loss matrix after removing null target
-        loss_mat = torch.where(
-            is_valid, loss_mat, torch.zeros(loss_mat.shape).to(loss_mat.device).to(loss_mat.dtype)
-        )
-
-        optimizer.zero_grad()
-        loss = torch.sum(loss_mat) / torch.sum(is_valid)
-        loss.backward()
-
-        optimizer.step()
-        
-    return {"loss": loss.detach()}
-
-
-def evaluate_classification(model, loader, device):
-    model.eval()
-    y_true = []
-    y_scores = []
-
-    for batch in loader:
-        batch = batch.to(device)
-
-        with torch.no_grad():
-            pred = model(batch.x, batch.edge_index, batch.edge_attr, batch.batch)
-
-        y_true.append(batch.y.reshape(pred.shape).detach().cpu())
-        y_scores.append(pred.detach().cpu())
-
-    y_true = torch.cat(y_true, dim=0).numpy()
-    y_scores = torch.cat(y_scores, dim=0).numpy()
-
-    roc_list = []
-    for i in range(y_true.shape[1]):
-        if np.sum(y_true[:, i] == 1) > 1e-6 and np.sum(y_true[:, i] == -1) > 1e-6:
-            is_valid = y_true[:, i] ** 2 > 1e-6
-            roc_list.append(roc_auc_score((y_true[is_valid, i] + 1) / 2, y_scores[is_valid, i]))
-
-    score = sum(roc_list) / len(roc_list)
-    return {"score": score}
-
-def train_regression(model, optimizer, loader, device):
-    criterion = nn.MSELoss(reduction="none")
+def train(model, optimizer, loader, device):
     model.train()
 
     for batch in loader:
@@ -90,10 +37,9 @@ def train_regression(model, optimizer, loader, device):
     return {"loss": loss.detach()}
 
 
-def evaluate_regression(model, loader, device):
-    criterion = nn.MSELoss(reduction="none")
+def evaluate(model, loader, device):
     model.eval()
-    mses = []
+    losses = []
     
     for batch in loader:
         batch = batch.to(device)
@@ -102,30 +48,19 @@ def evaluate_regression(model, loader, device):
             pred = model(batch.x, batch.edge_index, batch.edge_attr, batch.batch)
 
         y = batch.y.view(pred.shape).to(torch.float64)
-        mse = criterion(pred.double(), y)
-        mses.append(mse.cpu())
+        loss = criterion(pred.double(), y)
+        losses.append(loss.cpu())
 
-    rmse = torch.cat(mses, dim=0).mean() ** 0.5
+    loss = torch.cat(losses, dim=0).mean()
     
-    return {"score": -rmse}
+    return {"metric": loss}
 
 
 def main():
     # Training settings
     parser = argparse.ArgumentParser()
     parser.add_argument("--datasets", type=str, nargs="+", default=[
-        "freesolv", 
-        "esol", 
-        "sider", 
-        "bace", 
-        "bbbp", 
-        "clintox", 
-        "lipophilicity", 
-        "tox21",
-        "toxcast", 
-        "hiv", 
-        "muv", 
-        ])
+        "esol", "freesolv", "lipophilicity", "qm7", "qm8"])
     parser.add_argument("--model_path", type=str, default="")
 
     parser.add_argument("--num_epochs", type=int, default=100)
@@ -149,14 +84,14 @@ def main():
     device = torch.device(0)
 
     run = neptune.init(
-        project="sungsahn0215/ssg-finetune", name="finetune"
+        project="sungsahn0215/ssg", name="finetune_regression"
     )
     run["parameters"] = vars(args)
 
-    dataset2vali_best_score_list = {dataset: [] for dataset in args.datasets}
-    dataset2test_best_score_list = {dataset: [] for dataset in args.datasets}
-    dataset2last_vali_score_list = {dataset: [] for dataset in args.datasets}
-    dataset2last_test_score_list = {dataset: [] for dataset in args.datasets}
+    dataset2vali_best_metric_list = {dataset: [] for dataset in args.datasets}
+    dataset2test_best_metric_list = {dataset: [] for dataset in args.datasets}
+    dataset2last_vali_metric_list = {dataset: [] for dataset in args.datasets}
+    dataset2last_test_metric_list = {dataset: [] for dataset in args.datasets}
 
     for runseed in range(args.num_runs):
         for dataset_name in args.datasets:
@@ -164,23 +99,15 @@ def main():
             np.random.seed(runseed)
             torch.cuda.manual_seed_all(runseed)
 
-            if dataset_name in [
-                "bace", "bbbp", "sider", "clintox", "tox21", "toxcast", "hiv", "muv"
-                ]:
-                task = "classification"
-                train = train_classification
-                evaluate = evaluate_classification
-                
-            elif dataset_name in ["esol", "freesolv", "lipophilicity"]:
-                task = "regression"
-                train = train_regression
-                evaluate = evaluate_regression
-                
             dataset = MoleculeDataset("../resource/dataset/" + dataset_name, dataset=dataset_name)
+            y_mean = dataset.data.y.mean(dim=0)
+            y_std = dataset.data.y.std(dim=0)
+            dataset.data.y = (dataset.data.y - y_mean.unsqueeze(0)) / y_std.unsqueeze(0)
+            
             smiles_list = pd.read_csv(
                 '../resource/dataset/' + dataset_name + '/processed/smiles.csv', header=None
                 )[0].tolist()
-        
+            
             if args.split_type == "scaffold":
                 train_dataset, valid_dataset, test_dataset = scaffold_split(
                     dataset,
@@ -220,18 +147,11 @@ def main():
             )
 
             num_tasks = {
-                "tox21": 12,
-                "hiv": 1,
-                "pcba": 128,
-                "muv": 17,
-                "bace": 1,
-                "bbbp": 1,
-                "toxcast": 617,
-                "sider": 27,
-                "clintox": 2,
                 "esol": 1, 
                 "freesolv": 1, 
                 "lipophilicity": 1, 
+                "qm7": 1, 
+                "qm8": 12,
             }.get(dataset_name)
 
             model = GNN_graphpred(
@@ -240,7 +160,6 @@ def main():
                 num_tasks=num_tasks,
                 drop_ratio=args.drop_rate,
             )
-            
             if not args.model_path == "":
                 try:
                     model.gnn.load_state_dict(torch.load(args.model_path))
@@ -263,45 +182,51 @@ def main():
             optimizer = optim.Adam(model_param_group, lr=args.lr)
             scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.3)
             
-            vali_best_score = -1e8
-            test_best_score = -1e8
+            vali_best_metric = None
+            test_best_metric = None
             for epoch in range(args.num_epochs):                
                 train_statistics = train(model, optimizer, train_loader, device)
                 for key, val in train_statistics.items():
+                    val *= y_std ** 2
                     run[f"{dataset_name}/run{runseed}/train/{key}"].log(val)
 
                 scheduler.step()
     
                 vali_statistics = evaluate(model, vali_loader, device)
                 for key, val in vali_statistics.items():
+                    val *= y_std ** 2
                     run[f"{dataset_name}/run{runseed}/vali/{key}"].log(val)
 
                 test_statistics = evaluate(model, test_loader, device)
                 for key, val in test_statistics.items():
+                    val *= y_std ** 2
                     run[f"{dataset_name}/run{runseed}/test/{key}"].log(val)
 
-                if vali_statistics["score"] > vali_best_score:
-                    vali_best_score = vali_statistics["score"]
-                    test_best_score = test_statistics["score"]
+                if vali_best_metric is None or vali_statistics["metric"] < vali_best_metric:
+                    vali_best_metric = vali_statistics["metric"]
+                    test_best_metric = test_statistics["metric"]
 
-                run[f"{dataset_name}/run{runseed}/vali/best_score"].log(vali_best_score)
-                run[f"{dataset_name}/run{runseed}/test/best_score"].log(test_best_score)
+                run[f"{dataset_name}/run{runseed}/vali/best_metric"].log(vali_best_metric)
+                run[f"{dataset_name}/run{runseed}/test/best_metric"].log(test_best_metric)
 
-            dataset2last_vali_score_list[dataset_name].append(vali_statistics["score"])
-            dataset2last_test_score_list[dataset_name].append(test_statistics["score"])
-            dataset2vali_best_score_list[dataset_name].append(vali_best_score)
-            dataset2test_best_score_list[dataset_name].append(test_best_score)
+            dataset2last_vali_metric_list[dataset_name].append(vali_statistics["metric"])
+            dataset2last_test_metric_list[dataset_name].append(test_statistics["metric"])
+            dataset2vali_best_metric_list[dataset_name].append(vali_best_metric)
+            dataset2test_best_metric_list[dataset_name].append(test_best_metric)
             
-            run[f"{dataset_name}/run_avg/test/best_score"] = np.mean(
-                dataset2test_best_score_list[dataset_name]
+            run[f"{dataset_name}/run_avg/test/last_metric"] = np.mean(
+                dataset2last_test_metric_list[dataset_name]
                 )
-            run[f"{dataset_name}/run_avg/test/best_score_std"] = np.std(
-                dataset2test_best_score_list[dataset_name]
+            run[f"{dataset_name}/run_avg/test/best_metric"] = np.mean(
+                dataset2test_best_metric_list[dataset_name]
                 )
-            
-            run[f"dataset_avg/run_avg/test/best_score"] = np.mean(
-                [np.mean(val) for val in dataset2test_best_score_list.values()]
-                )
+
+        run[f"dataset_avg/run_avg/test/last_metric"] = np.mean(
+            [np.mean(val) for val in dataset2last_test_metric_list.values()]
+            )
+        run[f"dataset_avg/run_avg/test/best_metric"] = np.mean(
+            [np.mean(val) for val in dataset2test_best_metric_list.values()]
+            )
 
         
 if __name__ == "__main__":
