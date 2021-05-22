@@ -235,7 +235,7 @@ class GNN(torch.nn.Module):
             
         self.x_embedding1 = torch.nn.Embedding(num_atom_type, emb_dim)
         self.x_embedding2 = torch.nn.Embedding(num_chirality_tag, emb_dim)
-        #self.x_embedding3 = torch.nn.Embedding(2, emb_dim)
+        self.x_embedding3 = torch.nn.Embedding(2, emb_dim)
 
         torch.nn.init.xavier_uniform_(self.x_embedding1.weight.data)
         torch.nn.init.xavier_uniform_(self.x_embedding2.weight.data)
