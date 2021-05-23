@@ -150,7 +150,7 @@ def fragment(data, drop_p, min_num_nodes, aug_x):
     return data0, data1
 
 
-def multi_fragment(data, mask_p, x_mask_rate, add_fake):
+def multi_fragment(data, mask_p, x_mask_rate, add_fake, randomize_mask_p):
     if data.frag_y.max() == 0:
         return None
 
@@ -173,6 +173,9 @@ def multi_fragment(data, mask_p, x_mask_rate, add_fake):
     uniq_intra_edge_attr = uniq_edge_attr[intra_mask, :]
 
     # get drop edges
+    if randomize_mask_p:
+        mask_p = np.random.uniform(0.0, mask_p)
+        
     num_uniq_inter_edges = uniq_inter_edge_index.size(1)
     num_drops = max(1, int(num_uniq_inter_edges * mask_p))
     drop_idxs = random.sample(range(num_uniq_inter_edges), num_drops)

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-RUN_TAG="predictive0"
+RUN_TAG="predictive5"
 MODEL_PATH="../resource/result/${RUN_TAG}/model.pt"
 RESUME_PATH="../resource/result/${RUN_TAG}/checkpoint.pt"
 SUPERVISED_MODEL_PATH="../resource/result/${RUN_TAG}/model_supervised.pt"
@@ -14,6 +14,7 @@ python pretrain.py \
 --version 0 \
 --drop_p 0.5 \
 --add_fake \
+--randomize_mask_p \
 --num_epochs 20 \
 --use_neptune \
 --run_tag $RUN_TAG
