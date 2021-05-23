@@ -9,13 +9,13 @@ echo $RUN_TAG
 echo $MODEL_PATH
 echo $SUPERVISED_MODEL_PATH
 
-python pretrain.py \
---scheme predictive \
---version 0 \
---drop_p 0.5 \
---num_epochs 20 \
---use_neptune \
---run_tag $RUN_TAG
+#python pretrain.py \
+#--scheme predictive \
+#--version 0 \
+#--drop_p 0.5 \
+#--num_epochs 20 \
+#--use_neptune \
+#--run_tag $RUN_TAG
 
 python finetune.py \
 --datasets "freesolv" "esol" "sider" "bace" "bbbp" "clintox" "lipophilicity" "tox21" "qm7" "toxcast" "qm8" "hiv" "muv" \

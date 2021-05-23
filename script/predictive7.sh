@@ -9,18 +9,18 @@ echo $RUN_TAG
 echo $MODEL_PATH
 echo $SUPERVISED_MODEL_PATH
 
-python pretrain.py \
---scheme predictive \
---version 2 \
---drop_p 0.5 \
---add_fake \
---x_mask_rate 0.15 \
---num_epochs 20 \
---use_neptune \
---run_tag $RUN_TAG
+#python pretrain.py \
+#--scheme predictive \
+#--version 2 \
+#--add_fake \
+#--drop_p 0.5 \
+#--num_epochs 20 \
+#--x_mask_rate 0.15 \
+#--run_tag $RUN_TAG
+#--use_neptune \
 
 python finetune.py \
---datasets "freesolv" "esol" "sider" "bace" "bbbp" "clintox" "lipophilicity" "tox21" "qm7" "toxcast" "qm8" "hiv" "muv" \
+--datasets "freesolv" "esol" "sider" "bace" "bbbp" "clintox" "lipophilicity" "tox21" "toxcast" "hiv" "muv" \
 --num_atom_type 121 \
 --model_path $MODEL_PATH \
 --num_runs 5 \
