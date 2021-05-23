@@ -11,7 +11,7 @@ echo $SUPERVISED_MODEL_PATH
 
 python pretrain_multifrag.py \
 --scheme predictive \
---drop_p 0.5
+--drop_p 0.5 \
 --num_epochs 20 \
 --use_neptune \
 --run_tag $RUN_TAG
