@@ -280,6 +280,9 @@ def multi_fragment(data, mask_p, x_mask_rate, add_fake, randomize_mask_p):
         num_masks = max(1, int(x_mask_rate * data.x.size(0)))
         mask_nodes = random.sample(range(data.x.size(0)), num_masks)
         x_mask[mask_nodes] = True
-        new_data.x[x_mask] = 0
+        x_mask[new_data.x[x_mask][:, 0] == 0] = False
+        new_data.masked_x = new_data.x[x_mask][:, 0].clone() - 1
+        new_data.x[x_mask][:, 0] = 120
+        new_data.x_mask = x_mask
 
     return new_data

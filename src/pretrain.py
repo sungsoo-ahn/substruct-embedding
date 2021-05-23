@@ -19,32 +19,22 @@ def train_step(batchs, model, optim):
     model.train()
 
     statistics = dict()
-    logits, labels = model.compute_logits_and_labels(batchs)
-    loss = model.criterion(logits, labels)
-    acc = model.compute_accuracy(logits, labels)
-
-    statistics["loss"] = loss.detach()
-    statistics["acc"] = acc
+    cum_loss = 0.0
+    
+    logits_and_labels = model.compute_logits_and_labels(batchs)
+    for key, (logits, labels) in logits_and_labels.items():
+        loss = model.criterion[key](logits, labels)
+        acc = model.compute_accuracy(logits, labels, key)
+        cum_loss += loss
+        
+        statistics[f"{key}/loss"] = loss.detach()
+        statistics[f"{key}/acc"] = acc
 
     optim.zero_grad()
-    loss.backward()
+    cum_loss.backward()
     optim.step()
 
     return statistics
-
-def valid_step(batchs, model):
-    model.train()
-
-    statistics = dict()
-    logits, labels = model.compute_logits_and_labels(batchs)
-    loss = model.criterion(logits, labels)
-    acc = model.compute_accuracy(logits, labels)
-
-    statistics["loss"] = loss.detach()
-    statistics["acc"] = acc
-    
-    return statistics
-
 
 def main():
     parser = argparse.ArgumentParser()
@@ -58,7 +48,8 @@ def main():
 
     parser.add_argument("--num_layers", type=int, default=5)
     parser.add_argument("--emb_dim", type=int, default=300)
-
+    parser.add_argument("--num_atom_type", type=float, default=120)
+    
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--run_tag", type=str, default="")
     parser.add_argument("--use_neptune", action="store_true")

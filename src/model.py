@@ -6,7 +6,6 @@ import torch.nn.functional as F
 from torch_scatter import scatter_add
 from torch_geometric.nn.inits import glorot, zeros
 
-num_atom_type = 120 #119 + 1 + 1 #including the extra mask tokens
 num_chirality_tag = 3
 
 num_bond_type = 6 #including aromatic and self-loop edge, and extra masked tokens
@@ -221,7 +220,7 @@ class GNN(torch.nn.Module):
         node representations
 
     """
-    def __init__(self, num_layer, emb_dim, JK = "last", drop_ratio = 0, gnn_type = "gin", reduce_num_atom_type=False):
+    def __init__(self, num_layer, emb_dim, JK = "last", drop_ratio = 0, gnn_type = "gin", num_atom_type=120):
         super(GNN, self).__init__()
         self.num_layer = num_layer
         self.drop_ratio = drop_ratio
@@ -229,17 +228,12 @@ class GNN(torch.nn.Module):
 
         if self.num_layer < 2:
             raise ValueError("Number of GNN layers must be greater than 1.")
-        
-        #if reduce_num_atom_type:
-        #    num_atom_type -= 1
             
         self.x_embedding1 = torch.nn.Embedding(num_atom_type, emb_dim)
         self.x_embedding2 = torch.nn.Embedding(num_chirality_tag, emb_dim)
-        #self.x_embedding3 = torch.nn.Embedding(2, emb_dim)
-
+        
         torch.nn.init.xavier_uniform_(self.x_embedding1.weight.data)
         torch.nn.init.xavier_uniform_(self.x_embedding2.weight.data)
-        #torch.nn.init.xavier_uniform_(self.x_embedding3.weight.data)
 
         ###List of MLPs
         self.gnns = torch.nn.ModuleList()
@@ -313,7 +307,7 @@ class GNN_graphpred(torch.nn.Module):
     See https://arxiv.org/abs/1810.00826
     JK-net: https://arxiv.org/abs/1806.03536
     """
-    def __init__(self, num_layer, emb_dim, num_tasks, JK = "last", drop_ratio = 0, graph_pooling = "mean", gnn_type = "gin"):
+    def __init__(self, num_layer, emb_dim, num_tasks, JK = "last", drop_ratio = 0, graph_pooling = "mean", gnn_type = "gin", num_atom_type=120):
         super(GNN_graphpred, self).__init__()
         self.num_layer = num_layer
         self.drop_ratio = drop_ratio
@@ -324,7 +318,7 @@ class GNN_graphpred(torch.nn.Module):
         if self.num_layer < 2:
             raise ValueError("Number of GNN layers must be greater than 1.")
 
-        self.gnn = GNN(num_layer, emb_dim, JK, drop_ratio, gnn_type = gnn_type)
+        self.gnn = GNN(num_layer, emb_dim, JK, drop_ratio, gnn_type = gnn_type, num_atom_type=num_atom_type)
 
         #Different kind of graph pooling
         if graph_pooling == "sum":

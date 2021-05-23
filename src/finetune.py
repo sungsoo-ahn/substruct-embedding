@@ -162,6 +162,7 @@ def main():
     parser.add_argument("--num_layers", type=int, default=5)
     parser.add_argument("--emb_dim", type=int, default=300)
     parser.add_argument("--drop_rate", type=float, default=0.5)
+    parser.add_argument("--num_atom_type", type=int, default=120)
 
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--lr_scale", type=float, default=1.0)
@@ -283,6 +284,7 @@ def main():
                         emb_dim=args.emb_dim,
                         num_tasks=num_tasks,
                         drop_ratio=args.drop_rate,
+                        num_atom_type=args.num_atom_type,
                     )
             else:
                 model = GNN_graphpred(
@@ -290,6 +292,7 @@ def main():
                         emb_dim=args.emb_dim,
                         num_tasks=num_tasks,
                         drop_ratio=args.drop_rate,
+                        num_atom_type=args.num_atom_type,
                     )
             
             model.to(device)
