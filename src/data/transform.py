@@ -150,7 +150,7 @@ def fragment(data, drop_p, min_num_nodes, aug_x):
     return data0, data1
 
 
-def multi_fragment(data, mask_p, x_mask_rate, add_fake, randomize_mask_p):
+def multi_fragment(data, mask_p, x_mask_rate, add_fake, randomize_mask_p, no_fake_edge):
     if data.frag_y.max() == 0:
         return None
 
@@ -200,8 +200,11 @@ def multi_fragment(data, mask_p, x_mask_rate, add_fake, randomize_mask_p):
             ],
             dim=0,
         )
-        missing_edge_attr = torch.zeros(num_drops * 2, 2, dtype=torch.long)
-        missing_edge_attr[:, 0] = 5
+        if no_fake_edge:
+            missing_edge_attr = torch.cat([drop_edge_attr, drop_edge_attr], dim=0)
+        else:
+            missing_edge_attr = torch.zeros(num_drops * 2, 2, dtype=torch.long)
+            missing_edge_attr[:, 0] = 5
     
     else:
         missing_edge_index = drop_edge_index
@@ -277,12 +280,12 @@ def multi_fragment(data, mask_p, x_mask_rate, add_fake, randomize_mask_p):
 
     if x_mask_rate > 0.0:
         x_mask = torch.zeros(data.x.size(0), dtype=torch.long)
-        num_masks = max(1, int(x_mask_rate * data.x.size(0)))
+        num_masks = int(x_mask_rate * data.x.size(0))
         mask_nodes = random.sample(range(data.x.size(0)), num_masks)
         x_mask[mask_nodes] = True
-        x_mask[new_data.x[x_mask][:, 0] == 0] = False
-        new_data.masked_x = new_data.x[x_mask][:, 0].clone() - 1
-        new_data.x[x_mask][:, 0] = 120
+        x_mask[new_data.x[x_mask, 0] == 0] = False
+        new_data.masked_x = new_data.x[x_mask, 0].clone() - 1
+        new_data.x[x_mask, 0] = 120
         new_data.x_mask = x_mask
 
     return new_data
