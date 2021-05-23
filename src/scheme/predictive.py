@@ -67,6 +67,15 @@ class Model(torch.nn.Module):
             
             self.compute_logits_and_labels = self.compute_logits_and_labels_v2
         
+        elif version == 3:
+            self.encoder = GNN(
+                self.num_layers, self.emb_dim, drop_ratio=self.drop_rate, num_atom_type=121
+                )
+            
+            self.predict_mat = torch.nn.Parameter(torch.empty(2*self.emb_dim, 2*self.emb_dim))
+            uniform(4*self.emb_dim*self.emb_dim, self.predict_mat)
+            
+            self.compute_logits_and_labels = self.compute_logits_and_labels_v3
             
 
     def compute_logits_and_labels_v0(self, batch):
@@ -179,6 +188,35 @@ class Model(torch.nn.Module):
             "masking": (atom_logits, atom_labels),
         }
 
+    def compute_logits_and_labels_v3(self, batch):
+        batch = batch.to(0)
+        
+        out = self.encoder(batch.x, batch.edge_index, batch.edge_attr)
+        dangling_out = out[batch.dangling_mask]
+        
+        frag_out = global_mean_pool(out, batch.frag_batch)
+        frag_out = frag_out[batch.frag_batch][batch.dangling_mask]
+        
+        out = torch.cat([dangling_out, frag_out], dim=1) / self.emb_dim
+        
+        out0 = out[batch.dangling_edge_index[0]]
+        out0 = torch.mm(out0, self.predict_mat)
+
+        out1 = out[batch.dangling_edge_index[1]]
+        
+        shift_k = random.choice(range(1, out1.size(0)))
+        out2 = torch.roll(out1, shifts=shift_k, dims=0)
+        
+        out01 = torch.sum(out0*out1, dim=1)
+        out02 = torch.sum(out0*out2, dim=1)
+        
+        logits = torch.cat([out01, out02], dim=0)
+        
+        labels = torch.cat(
+            [torch.ones(out01.size(0)), torch.zeros(out02.size(0))], dim=0
+        ).to(0)
+
+        return {"main": (logits, labels)}
     
     def compute_accuracy(self, pred, target, key):
         if key == "main":

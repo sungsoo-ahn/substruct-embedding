@@ -63,7 +63,7 @@ def main():
     parser.add_argument("--x_mask_rate", type=float, default=0.0)
     parser.add_argument("--add_fake", action="store_true")
     parser.add_argument("--randomize_mask_p", action="store_true")
-        
+    parser.add_argument("--no_fake_edge", action="store_true")
     parser.add_argument("--input_model_path", type=str, default="")
     args = parser.parse_args()
 
@@ -78,7 +78,9 @@ def main():
     elif args.scheme == "contrastive":
         model = contrastive.Model(version=args.version)
     
-    transform = lambda data: multi_fragment(data, args.drop_p, args.x_mask_rate, args.add_fake, args.randomize_mask_p)
+    transform = lambda data: multi_fragment(
+        data, args.drop_p, args.x_mask_rate, args.add_fake, args.randomize_mask_p, args.no_fake_edge
+        )
     
     print("Loading model...")
     model = model.cuda()
