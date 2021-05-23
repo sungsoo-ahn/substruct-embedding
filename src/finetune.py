@@ -115,6 +115,24 @@ def evaluate_regression(model, loader, device):
     
     return {"score": -rmse}
 
+def evaluate_regression_mae(model, loader, device):
+    criterion = nn.L1Loss(reduction="none")
+    model.eval()
+    maes = []
+    
+    for batch in loader:
+        batch = batch.to(device)
+
+        with torch.no_grad():
+            pred = model(batch.x, batch.edge_index, batch.edge_attr, batch.batch)
+
+        y = batch.y.view(pred.shape).to(torch.float64)
+        mae = criterion(pred.double(), y)
+        maes.append(mae.cpu())
+
+    mae = torch.cat(maes, dim=0).mean() ** 0.5
+    
+    return {"score": -mae}
 
 def main():
     # Training settings
@@ -128,7 +146,9 @@ def main():
         "clintox", 
         "lipophilicity", 
         "tox21",
+        "qm7",
         "toxcast", 
+        "qm8",
         "hiv", 
         "muv", 
         ])
@@ -181,6 +201,12 @@ def main():
                 task = "regression"
                 train = train_regression
                 evaluate = evaluate_regression
+            
+            elif dataset_name in ["qm7", "qm8"]:
+                task = "regression_mae"
+                train = train_regression
+                evaluate = evaluate_regression_mae
+            
                 
             dataset = MoleculeDataset("../resource/dataset/" + dataset_name, dataset=dataset_name)
             smiles_list = pd.read_csv(
@@ -238,6 +264,8 @@ def main():
                 "esol": 1, 
                 "freesolv": 1, 
                 "lipophilicity": 1, 
+                "qm7": 1,
+                "qm8": 12,
             }.get(dataset_name)
 
             if not args.model_path == "":
@@ -251,6 +279,13 @@ def main():
                     model.gnn.load_state_dict(torch.load(args.model_path))
                 except:
                     model = old_model.GNN_graphpred(
+                        num_layer=args.num_layers, 
+                        emb_dim=args.emb_dim,
+                        num_tasks=num_tasks,
+                        drop_ratio=args.drop_rate,
+                    )
+            else:
+                model = GNN_graphpred(
                         num_layer=args.num_layers, 
                         emb_dim=args.emb_dim,
                         num_tasks=num_tasks,

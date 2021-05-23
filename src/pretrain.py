@@ -7,9 +7,9 @@ import random
 import torch
 
 from frag_dataset import FragDataset
-from scheme import contrastive, predictive
-from data.transform import fragment
-from data.collate import double_collate, merge_collate
+from scheme import predictive, contrastive
+from data.transform import multi_fragment
+from data.collate import multifrag_collate
 import neptune.new as neptune
 
 from tqdm import tqdm
@@ -25,9 +25,9 @@ def train_step(batchs, model, optim):
 
     statistics["loss"] = loss.detach()
     statistics["acc"] = acc
+
     optim.zero_grad()
     loss.backward()
-        
     optim.step()
 
     return statistics
@@ -49,7 +49,7 @@ def valid_step(batchs, model):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", type=str, default="zinc_brics")
-    parser.add_argument("--num_epochs", type=int, default=100)
+    parser.add_argument("--num_epochs", type=int, default=20)
     parser.add_argument("--log_freq", type=float, default=100)
     parser.add_argument("--resume_path", type=str, default="")
 
@@ -65,12 +65,14 @@ def main():
 
     parser.add_argument("--use_valid", action="store_true")
     
-    parser.add_argument("--scheme", type=str, default="contrastive")
-    parser.add_argument("--drop_p", type=float, default=0.5)
-    parser.add_argument("--min_num_nodes", type=int, default=0)
-    parser.add_argument("--proj_type", type=int, default=0)
-    parser.add_argument("--aug_x", action="store_true")
+    parser.add_argument("--scheme", type=str, default="predictive")
+    parser.add_argument("--version", type=int, default=0)
     
+    parser.add_argument("--drop_p", type=float, default=0.5)
+    parser.add_argument("--x_mask_rate", type=float, default=0.0)
+    parser.add_argument("--add_fake", action="store_true")
+        
+    parser.add_argument("--input_model_path", type=str, default="")
     args = parser.parse_args()
 
     torch.manual_seed(0)
@@ -78,21 +80,25 @@ def main():
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(0)
 
-    if args.scheme == "contrastive":
-        model = contrastive.Model(proj_type=args.proj_type)
-        collate = double_collate
-        transform = lambda data: fragment(data, args.drop_p, args.min_num_nodes, args.aug_x)    
-    elif args.scheme == "predictive":
-        model = predictive.Model()   
-        collate = merge_collate
-        transform = lambda data: fragment(data, args.drop_p, args.min_num_nodes, args.aug_x)             
+
+    if args.scheme == "predictive":
+        model = predictive.Model(version=args.version)
+    elif args.scheme == "contrastive":
+        model = contrastive.Model(version=args.version)
+    
+    transform = lambda data: multi_fragment(data, args.drop_p, args.x_mask_rate, args.add_fake)
     
     print("Loading model...")
     model = model.cuda()
     optim = torch.optim.Adam(
         [param for param in model.parameters() if param.requires_grad], lr=args.lr
     )
-            
+    
+    if args.input_model_path != "":
+        state_dict = torch.load(args.input_model_path)
+        model.encoder.load_state_dict(state_dict)
+
+    
     if args.resume_path != "":
         print("Loading checkpoint...")
         checkpoint = torch.load(args.resume_path)
@@ -108,7 +114,7 @@ def main():
     dataset = FragDataset(
         "../resource/dataset/" + args.dataset, dataset=args.dataset, transform=transform,
     )
-
+    
     if args.use_valid:
         print("Splitting dataset...")
         perm = list(range(len(dataset)))
@@ -121,7 +127,7 @@ def main():
         batch_size=args.batch_size,
         shuffle=True,
         num_workers=args.num_workers,
-        collate_fn=collate,
+        collate_fn=multifrag_collate,
     )
 
     if args.use_valid:
