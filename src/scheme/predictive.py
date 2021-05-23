@@ -57,7 +57,7 @@ class Model(torch.nn.Module):
         frag_out = frag_out[batch.frag_batch][batch.dangling_mask]
         
         dangling_out = self.dangling_projector(dangling_out)
-        out = dangling_out + frag_out
+        out = (dangling_out + frag_out) / self.emb_dim
         
         out0 = out[batch.dangling_edge_index[0]]
         predict_mat = (
@@ -92,7 +92,7 @@ class Model(torch.nn.Module):
         frag_out = global_mean_pool(out, batch.frag_batch)
         frag_out = frag_out[batch.frag_batch][batch.dangling_mask]
         
-        out = torch.cat([dangling_out, frag_out], dim=1)
+        out = torch.cat([dangling_out, frag_out], dim=1) / self.emb_dim
         
         out0 = out[batch.dangling_edge_index[0]]
         predict_mat = (
