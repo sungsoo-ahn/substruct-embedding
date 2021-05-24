@@ -15,12 +15,21 @@ python pretrain.py \
 --drop_p 0.5 \
 --add_fake \
 --x_mask_rate 0.15 \
---num_epochs 20 \
+--num_epochs 100 \
+--use_neptune \
+--resume_path $RESUME_PATH \
+--run_tag $RUN_TAG
+
+python supervised.py \
+--input_model_path $MODEL_PATH \
+--output_model_path $SUPERVISED_MODEL_PATH \
+--num_atom_type 121 \
+--epochs 100 \
 --use_neptune \
 --run_tag $RUN_TAG
 
 python finetune.py \
---datasets "freesolv" "esol" "sider" "bace" "bbbp" "clintox" "lipophilicity" "tox21" "qm7" "toxcast" "qm8" "hiv" "muv" \
+--datasets "freesolv" "esol" "sider" "bace" "bbbp" "clintox" "lipophilicity" "tox21" "toxcast" "hiv" "muv" \
 --num_atom_type 121 \
 --model_path $MODEL_PATH \
 --num_runs 5 \

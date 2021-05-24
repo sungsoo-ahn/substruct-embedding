@@ -79,6 +79,7 @@ def main():
     parser.add_argument('--num_workers', type=int, default = 8, help='number of workers for dataset loading')
     parser.add_argument('--run_tag', type=str, default='')
     parser.add_argument('--use_neptune', action="store_true")
+    parser.add_argument('--num_atom_type', type=int, default = 120)
     args = parser.parse_args()
 
 
@@ -100,7 +101,7 @@ def main():
     loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers = args.num_workers)
 
     #set up model
-    model = GNN_graphpred(args.num_layer, args.emb_dim, num_tasks, JK = args.JK, drop_ratio = args.dropout_ratio, graph_pooling = args.graph_pooling, gnn_type = args.gnn_type)
+    model = GNN_graphpred(args.num_layer, args.emb_dim, num_tasks, JK = args.JK, drop_ratio = args.dropout_ratio, graph_pooling = args.graph_pooling, gnn_type = args.gnn_type, num_atom_type=args.num_atom_type)
     if not args.input_model_path == "":
         try:
             model.from_pretrained(args.input_model_path)

@@ -14,13 +14,12 @@ python pretrain.py \
 --version 1 \
 --drop_p 0.3 \
 --add_fake \
---num_epochs 20 \
+--num_epochs 100 \
 --use_neptune \
 --run_tag $RUN_TAG
 
 python finetune.py \
 --datasets "freesolv" "esol" "sider" "bace" "bbbp" "clintox" "lipophilicity" "tox21" "toxcast" "hiv" "muv" \
---num_atom_type 121 \
 --model_path $MODEL_PATH \
 --num_runs 5 \
 --run_tag $RUN_TAG
