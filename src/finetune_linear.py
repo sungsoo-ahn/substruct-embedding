@@ -11,23 +11,39 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch_geometric.data import DataLoader
 
-from model import GNN_graphpred
+from model import GNN
 from data.dataset import MoleculeDataset
 from data.splitter import scaffold_split, random_split
+from torch_geometric.nn import global_mean_pool
 
 import old_model
+
+def extract_tsr_dataset(model, loader, device):
+    x_dataset = []
+    y_dataset = []
+    with torch.no_grad():
+        for batch in tqdm(loader):
+            batch = batch.to(device)
+            out = model(batch.x, batch.edge_index, batch.edge_attr)
+            out = global_mean_pool(out, batch.batch)
+            x_dataset.append(out.cpu())
+            y_dataset.append(batch.y)
+
+    x_dataset = torch.cat(x_dataset, dim=0)
+    y_dataset = torch.cat(y_dataset, dim=0)
+    tsr_dataset = torch.utils.data.TensorDataset(x_dataset, y_dataset.view(x_dataset.size(0), -1))
+    
+    return tsr_dataset
 
 def train_classification(model, optimizer, loader, device):
     criterion = nn.BCEWithLogitsLoss(reduction="none")
     model.train()
 
-    for batch in loader:
-        if batch.x.size(0) == 1:
-            continue
-
-        batch = batch.to(device)
-        pred = model(batch.x, batch.edge_index, batch.edge_attr, batch.batch)
-        y = batch.y.view(pred.shape).to(torch.float64)
+    for x, y in loader:
+        x = x.to(device)
+        y = y.to(device)
+        pred = model(x)
+        y = y.view(pred.shape).to(torch.float64)
         
         # Whether y is non-null or not.
         is_valid = y ** 2 > 1e-6
@@ -52,13 +68,15 @@ def evaluate_classification(model, loader, device):
     y_true = []
     y_scores = []
 
-    for batch in loader:
-        batch = batch.to(device)
-
+    for x, y in loader:
+        x = x.to(device)
+        y = y.to(device)
         with torch.no_grad():
-            pred = model(batch.x, batch.edge_index, batch.edge_attr, batch.batch)
+            pred = model(x)
+            
+        y = y.view(pred.shape).to(torch.float64)
 
-        y_true.append(batch.y.reshape(pred.shape).detach().cpu())
+        y_true.append(y.reshape(pred.shape).detach().cpu())
         y_scores.append(pred.detach().cpu())
 
     y_true = torch.cat(y_true, dim=0).numpy()
@@ -77,16 +95,13 @@ def train_regression(model, optimizer, loader, device):
     criterion = nn.MSELoss(reduction="none")
     model.train()
 
-    for batch in loader:
-        if batch.x.size(0) == 1:
-            continue
-        
-        batch = batch.to(device)
-        pred = model(batch.x, batch.edge_index, batch.edge_attr, batch.batch)
-        y = batch.y.view(pred.shape).to(torch.float64)
+    for x, y in loader:
+        x = x.to(device)
+        y = y.to(device)
+        pred = model(x)
         
         # Loss matrix
-        loss = criterion(pred.double(), y).mean()
+        loss = criterion(pred, y).mean()
         
         optimizer.zero_grad()
         loss.backward()
@@ -101,14 +116,13 @@ def evaluate_regression(model, loader, device):
     model.eval()
     mses = []
     
-    for batch in loader:
-        batch = batch.to(device)
-
+    for x, y in loader:
+        x = x.to(device)
+        y = y.to(device)
         with torch.no_grad():
-            pred = model(batch.x, batch.edge_index, batch.edge_attr, batch.batch)
-
-        y = batch.y.view(pred.shape).to(torch.float64)
-        mse = criterion(pred.double(), y)
+            pred = model(x)
+        
+        mse = criterion(pred, y)
         mses.append(mse.cpu())
 
     rmse = torch.cat(mses, dim=0).mean() ** 0.5
@@ -120,13 +134,12 @@ def evaluate_regression_mae(model, loader, device):
     model.eval()
     maes = []
     
-    for batch in loader:
-        batch = batch.to(device)
-
+    for x, y in loader:
+        x = x.to(device)
+        y = y.to(device)
         with torch.no_grad():
-            pred = model(batch.x, batch.edge_index, batch.edge_attr, batch.batch)
-
-        y = batch.y.view(pred.shape).to(torch.float64)
+            pred = model(x)
+        
         mae = criterion(pred.double(), y)
         maes.append(mae.cpu())
 
@@ -157,11 +170,11 @@ def main():
     parser.add_argument("--num_epochs", type=int, default=100)
 
     parser.add_argument("--batch_size", type=int, default=32)
-    parser.add_argument("--num_workers", type=int, default=8)
+    parser.add_argument("--num_workers", type=int, default=0)
 
     parser.add_argument("--num_layers", type=int, default=5)
     parser.add_argument("--emb_dim", type=int, default=300)
-    parser.add_argument("--drop_rate", type=float, default=0.5)
+    parser.add_argument("--drop_rate", type=float, default=0.0)
     parser.add_argument("--num_atom_type", type=int, default=120)
 
     parser.add_argument("--lr", type=float, default=1e-3)
@@ -176,7 +189,7 @@ def main():
     device = torch.device(0)
 
     run = neptune.init(
-        project="sungsahn0215/ssg-finetune", name="finetune"
+        project="sungsahn0215/ssg-finetune", name="finetune_linear"
     )
     run["parameters"] = vars(args)
 
@@ -235,19 +248,19 @@ def main():
             
             train_loader = DataLoader(
                 train_dataset, 
-                batch_size=args.batch_size, 
+                batch_size=1024, 
                 shuffle=True, 
                 num_workers=args.num_workers,
             )
             vali_loader = DataLoader(
                 valid_dataset, 
-                batch_size=args.batch_size, 
+                batch_size=1024, 
                 shuffle=False, 
                 num_workers=args.num_workers
             )
             test_loader = DataLoader(
                 test_dataset, 
-                batch_size=args.batch_size, 
+                batch_size=1024, 
                 shuffle=False, 
                 num_workers=args.num_workers
             )
@@ -271,40 +284,56 @@ def main():
 
             if not args.model_path == "":
                 try:
-                    model = GNN_graphpred(
+                    encoder = GNN(
                         num_layer=args.num_layers, 
                         emb_dim=args.emb_dim,
-                        num_tasks=num_tasks,
                         drop_ratio=args.drop_rate,
                         num_atom_type=args.num_atom_type,
                     )
-                    model.gnn.load_state_dict(torch.load(args.model_path))
+                    encoder.gnn.load_state_dict(torch.load(args.model_path))
                 except:
-                    model = old_model.GNN_graphpred(
+                    encoder = old_model.GNN(
                         num_layer=args.num_layers, 
                         emb_dim=args.emb_dim,
-                        num_tasks=num_tasks,
                         drop_ratio=args.drop_rate,
                         num_atom_type=args.num_atom_type,
                     )
             else:
-                model = GNN_graphpred(
+                encoder = GNN(
                         num_layer=args.num_layers, 
                         emb_dim=args.emb_dim,
-                        num_tasks=num_tasks,
                         drop_ratio=args.drop_rate,
                         num_atom_type=args.num_atom_type,
                     )
             
-            model.to(device)
-
-            model_param_group = []
-            model_param_group.append({"params": model.gnn.parameters()})
-            model_param_group.append(
-                {"params": model.graph_pred_linear.parameters(), "lr":args.lr*args.lr_scale}
-                )
-            optimizer = optim.Adam(model_param_group, lr=args.lr)
-            scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.3)
+            encoder.to(device)
+            encoder.eval()
+            
+            train_dataset = extract_tsr_dataset(encoder, train_loader, device)
+            valid_dataset = extract_tsr_dataset(encoder, vali_loader, device)
+            test_dataset = extract_tsr_dataset(encoder, test_loader, device)
+            
+            train_loader = torch.utils.data.DataLoader(
+                train_dataset, 
+                batch_size=args.batch_size, 
+                shuffle=True, 
+                num_workers=args.num_workers,
+            )
+            vali_loader = torch.utils.data.DataLoader(
+                valid_dataset, 
+                batch_size=args.batch_size, 
+                shuffle=False, 
+                num_workers=args.num_workers
+            )
+            test_loader = torch.utils.data.DataLoader(
+                test_dataset, 
+                batch_size=args.batch_size, 
+                shuffle=False, 
+                num_workers=args.num_workers
+            )
+            
+            model = torch.nn.Linear(args.emb_dim, num_tasks).to(device)
+            optimizer = optim.Adam(model.parameters(), lr=args.lr)
             
             vali_best_score = -1e8
             test_best_score = -1e8
@@ -312,8 +341,6 @@ def main():
                 train_statistics = train(model, optimizer, train_loader, device)
                 for key, val in train_statistics.items():
                     run[f"{dataset_name}/run{runseed}/train/{key}"].log(val)
-
-                scheduler.step()
     
                 vali_statistics = evaluate(model, vali_loader, device)
                 for key, val in vali_statistics.items():
