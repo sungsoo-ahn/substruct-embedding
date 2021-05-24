@@ -290,7 +290,7 @@ def main():
                         drop_ratio=args.drop_rate,
                         num_atom_type=args.num_atom_type,
                     )
-                    encoder.gnn.load_state_dict(torch.load(args.model_path))
+                    encoder.load_state_dict(torch.load(args.model_path))
                 except:
                     encoder = old_model.GNN(
                         num_layer=args.num_layers, 

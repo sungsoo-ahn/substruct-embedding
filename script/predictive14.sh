@@ -15,6 +15,7 @@ python pretrain.py \
 --drop_p 0.5 \
 --add_fake \
 --x_mask_rate 0.15 \
+--num_atom_type 121 \
 --num_epochs 100 \
 --use_neptune \
 --run_tag $RUN_TAG
