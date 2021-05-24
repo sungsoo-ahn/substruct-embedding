@@ -9,7 +9,7 @@ num_bond_type = 6
 num_bond_direction = 3 
 
 class Model(torch.nn.Module):
-    def __init__(self, version):
+    def __init__(self, version, num_atom_type):
         super(Model, self).__init__()
         self.num_layers = 5
         self.emb_dim = 300
@@ -30,7 +30,7 @@ class Model(torch.nn.Module):
             self.compute_logits_and_labels = self.compute_logits_and_labels_v0
             
         elif version == 1:
-            self.encoder = GNN(self.num_layers, self.emb_dim, drop_ratio=self.drop_rate)
+            self.encoder = GNN(self.num_layers, self.emb_dim, drop_ratio=self.drop_rate, num_atom_type=num_atom_type)
             
             self.edge_embedding1 = torch.nn.Embedding(
                 num_bond_type, 4 * self.emb_dim * self.emb_dim

@@ -48,7 +48,7 @@ def main():
 
     parser.add_argument("--num_layers", type=int, default=5)
     parser.add_argument("--emb_dim", type=int, default=300)
-    parser.add_argument("--num_atom_type", type=float, default=120)
+    parser.add_argument("--num_atom_type", type=int, default=120)
     
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--run_tag", type=str, default="")
@@ -65,6 +65,7 @@ def main():
     parser.add_argument("--randomize_mask_p", action="store_true")
     parser.add_argument("--no_fake_edge", action="store_true")
     parser.add_argument("--input_model_path", type=str, default="")
+    
     args = parser.parse_args()
 
     torch.manual_seed(0)
@@ -74,9 +75,9 @@ def main():
 
 
     if args.scheme == "predictive":
-        model = predictive.Model(version=args.version)
+        model = predictive.Model(version=args.version, num_atom_type=args.num_atom_type)
     elif args.scheme == "contrastive":
-        model = contrastive.Model(version=args.version)
+        model = contrastive.Model(version=args.version, num_atom_type=args.num_atom_type)
     
     transform = lambda data: multi_fragment(
         data, args.drop_p, args.x_mask_rate, args.add_fake, args.randomize_mask_p, args.no_fake_edge
