@@ -22,9 +22,10 @@ class Model(torch.nn.Module):
         self.action_embedding = torch.nn.Embedding(5, self.emb_dim)
 
     def compute_logits_and_labels(self, batch):        
-        batch = batch.to(0)
-
         batch0, batch1 = batch    
+        batch0 = batch0.to(0)
+        batch1 = batch1.to(0)
+        
         out0 = self.encoder(batch0.x, batch0.edge_index, batch0.edge_attr)
         out0 = out0 + self.action_embedding(batch0.action_feat)
         out0 = self.projector(out0)
