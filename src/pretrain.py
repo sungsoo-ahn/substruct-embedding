@@ -73,9 +73,9 @@ def main():
 
 
     if args.scheme == "predictive":
-        model = predictive.Model(version=args.version, num_atom_type=args.num_atom_type)
+        model = predictive.Model()
     elif args.scheme == "contrastive":
-        model = contrastive.Model(version=args.version, num_atom_type=args.num_atom_type)
+        model = contrastive.Model()
     
     transform = lambda data: mutate(data)
     
