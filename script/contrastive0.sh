@@ -9,15 +9,14 @@ echo $RUN_TAG
 echo $MODEL_PATH
 echo $SUPERVISED_MODEL_PATH
 
-python pretrain_multifrag.py \
+python pretrain.py \
 --scheme contrastive \
---drop_p 0.5 \
 --num_epochs 20 \
 --use_neptune \
 --run_tag $RUN_TAG
 
 python finetune.py \
---datasets "freesolv" "esol" "sider" "bace" "bbbp" "clintox" "lipophilicity" "tox21" "toxcast" "hiv" "muv" \
+--datasets "freesolv" "esol" "sider" "bace" "bbbp" "clintox" "lipophilicity" "tox21" "qm7" "toxcast" "qm8" "hiv" "muv" \
 --model_path $MODEL_PATH \
---num_runs 3 \
+--num_runs 5 \
 --run_tag $RUN_TAG

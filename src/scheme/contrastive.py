@@ -17,41 +17,20 @@ class Model(torch.nn.Module):
         self.contrastive_temperature = 0.04
 
         self.encoder = GNN(self.num_layers, self.emb_dim, drop_ratio=self.drop_rate)
-        self.dangling_projector = torch.nn.Linear(self.emb_dim, self.emb_dim)        
-        self.edge_embedding1 = torch.nn.Embedding(num_bond_type, self.emb_dim * self.emb_dim)
-        self.edge_embedding2 = torch.nn.Embedding(num_bond_direction, self.emb_dim* self.emb_dim)
-
-        embedding_size = (num_bond_type * self.emb_dim * self.emb_dim)
-        uniform(embedding_size, self.edge_embedding1.weight)
-        embedding_size = (num_bond_direction * self.emb_dim * self.emb_dim)
-        uniform(embedding_size, self.edge_embedding2.weight)
+        self.projector = torch.nn.Linear(self.emb_dim, self.emb_dim)
 
     def compute_logits_and_labels(self, batch):        
         batch = batch.to(0)
-                
-        u_index = batch.dangling_edge_index[0]
-        v_index = batch.dangling_edge_index[1]
-        uv_edge_attr = batch.drop_edge_attr
-        
-        out = self.encoder(batch.x, batch.edge_index, batch.edge_attr)
-        dangling_out = out[batch.dangling_mask]
-        dangling_out = self.dangling_projector(dangling_out)
-        
-        frag_out = global_mean_pool(out, batch.frag_batch)
-        frag_out = torch.repeat_interleave(frag_out, batch.frag_num_nodes, dim=0)
-        frag_out = frag_out[batch.dangling_mask]
-        
-        out = dangling_out + frag_out
-        
-        out0 = out[u_index]
-        predict_mat = (
-            self.edge_embedding1(uv_edge_attr[:,0]) + self.edge_embedding2(uv_edge_attr[:,1])
-        ).view(-1, self.emb_dim, self.emb_dim)
-        
-        out0 = torch.bmm(out0.unsqueeze(1), predict_mat).squeeze(1)
+
+        batch0, batch1 = batch    
+        out0 = self.encoder(batch0.x, batch0.edge_index, batch0.edge_attr)
+        out0 = self.projector(out0)
+        out0 = global_mean_pool(out0)
         features0 = torch.nn.functional.normalize(out0, p=2, dim=1)
 
-        out1 = out[v_index]
+        out1 = self.encoder(batch1.x, batch1.edge_index, batch1.edge_attr)
+        out1 = self.projector(out1)
+        out1 = global_mean_pool(out1)
         features1 = torch.nn.functional.normalize(out1, p=2, dim=1)
 
         logits = torch.matmul(features0, features1.t()) / self.contrastive_temperature

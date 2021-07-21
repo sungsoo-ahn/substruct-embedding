@@ -8,8 +8,8 @@ import torch
 
 from frag_dataset import FragDataset
 from scheme import predictive, contrastive
-from data.transform import multi_fragment
-from data.collate import multifrag_collate
+from data.transform import mutate
+from data.collate import double_collate
 import neptune.new as neptune
 
 from tqdm import tqdm
@@ -54,8 +54,6 @@ def main():
     parser.add_argument("--run_tag", type=str, default="")
     parser.add_argument("--use_neptune", action="store_true")
 
-    parser.add_argument("--use_valid", action="store_true")
-    
     parser.add_argument("--scheme", type=str, default="predictive")
     parser.add_argument("--version", type=int, default=0)
     
@@ -79,9 +77,7 @@ def main():
     elif args.scheme == "contrastive":
         model = contrastive.Model(version=args.version, num_atom_type=args.num_atom_type)
     
-    transform = lambda data: multi_fragment(
-        data, args.drop_p, args.x_mask_rate, args.add_fake, args.randomize_mask_p, args.no_fake_edge
-        )
+    transform = lambda data: mutate(data)
     
     print("Loading model...")
     model = model.cuda()
@@ -110,30 +106,13 @@ def main():
         "../resource/dataset/" + args.dataset, dataset=args.dataset, transform=transform,
     )
     
-    if args.use_valid:
-        print("Splitting dataset...")
-        perm = list(range(len(dataset)))
-        random.shuffle(perm)
-        valid_dataset = dataset[torch.tensor(perm[:100000])]
-        dataset = dataset[torch.tensor(perm[100000:])]
-    
     loader = torch.utils.data.DataLoader(
         dataset,
         batch_size=args.batch_size,
         shuffle=True,
         num_workers=args.num_workers,
-        collate_fn=multifrag_collate,
+        collate_fn=double_collate,
     )
-
-    if args.use_valid:
-        valid_loader = torch.utils.data.DataLoader(
-            valid_dataset,
-            batch_size=args.batch_size,
-            shuffle=False,
-            num_workers=args.num_workers,
-            collate_fn=collate,
-        )
-
 
     if args.use_neptune:
         print("Loading neptune...")
@@ -174,24 +153,6 @@ def main():
                 cum_train_statistics = defaultdict(float)
 
                 print(f"[{asctime()}] {prompt}")
-                    
-        if args.use_valid:
-            cum_valid_statistics = defaultdict(float)
-            for batchs in (valid_loader):
-                with torch.no_grad():
-                    valid_statistics = valid_step(batchs, model)
-                
-                for key, val in valid_statistics.items():
-                    cum_valid_statistics[key] += val / len(valid_loader)
-
-            prompt = ""
-            for key, val in cum_valid_statistics.items():
-                prompt += f"valid/{key}: {val:.2f} "
-                if args.use_neptune:
-                    run[f"valid/{key}"].log(val)
-
-            print(f"[{asctime()}] {prompt}")
-
         
         if args.use_neptune:
             checkpoint = {
