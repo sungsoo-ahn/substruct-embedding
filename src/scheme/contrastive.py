@@ -13,7 +13,7 @@ class Model(torch.nn.Module):
         self.num_layers = 5
         self.emb_dim = 300
         self.drop_rate = 0.0
-        self.criterion = torch.nn.CrossEntropyLoss()
+        self.criterion = {"main": torch.nn.CrossEntropyLoss()}
         self.contrastive_temperature = 0.04
 
         self.encoder = GNN(self.num_layers, self.emb_dim, drop_ratio=self.drop_rate)
@@ -39,6 +39,6 @@ class Model(torch.nn.Module):
 
         return {"main": (logits, targets)}
     
-    def compute_accuracy(self, pred, target):
+    def compute_accuracy(self, pred, target, key):
         acc = float(torch.sum(torch.max(pred, dim=1)[1] == target)) / pred.size(0)
         return acc
