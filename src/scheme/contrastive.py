@@ -37,7 +37,7 @@ class Model(torch.nn.Module):
         logits = torch.matmul(features0, features1.t()) / self.contrastive_temperature
         targets = torch.arange(logits.size(0)).to(0)
 
-        return logits, targets
+        return {"main": (logits, labels)}
     
     def compute_accuracy(self, pred, target):
         acc = float(torch.sum(torch.max(pred, dim=1)[1] == target)) / pred.size(0)
